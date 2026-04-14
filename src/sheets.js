@@ -1,12 +1,12 @@
 const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-// Configuration — update these with your values
 const CONFIG = {
-  SPREADSHEET_ID: 'process.env.SPREADSHEET_ID', // The ID from your Google Sheet URL
-  SHEET_NAME: 'Sheet1',                        // The tab name
-  DATE_COLUMN: 'F',                            // Column containing application dates
+  SPREADSHEET_ID: process.env.SPREADSHEET_ID,
+  SHEET_NAME: process.env.SHEET_NAME || 'Sheet1',
+  DATE_COLUMN: process.env.DATE_COLUMN || 'F',
   CREDENTIALS_PATH: path.join(__dirname, '..', 'credentials.json'),
 };
 
