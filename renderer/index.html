@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Application Heatmap</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="widget">
+    <div id="titlebar">
+      <div id="drag-region">
+        <span id="title">Job Applications</span>
+        <span id="stats"></span>
+      </div>
+      <div id="controls">
+        <button id="btn-pin" title="Toggle Always on Top">📌</button>
+        <button id="btn-refresh" title="Refresh Data">🔄</button>
+        <button id="btn-close" title="Close">✕</button>
+      </div>
+    </div>
+    <div id="heatmap-container">
+      <div id="month-labels"></div>
+      <div id="heatmap-wrapper">
+        <div id="day-labels">
+          <span></span>
+          <span>Mon</span>
+          <span></span>
+          <span>Wed</span>
+          <span></span>
+          <span>Fri</span>
+          <span></span>
+        </div>
+        <div id="heatmap"></div>
+      </div>
+    </div>
+    <div id="legend">
+      <span>Less</span>
+      <div class="legend-cell" data-level="0"></div>
+      <div class="legend-cell" data-level="1"></div>
+      <div class="legend-cell" data-level="2"></div>
+      <div class="legend-cell" data-level="3"></div>
+      <div class="legend-cell" data-level="4"></div>
+      <span>More</span>
+    </div>
+    <div id="tooltip" class="hidden"></div>
+    <div id="loading">Loading data...</div>
+    <div id="error" class="hidden"></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
