@@ -1,0 +1,13 @@
+{
+  "name": "heatmap",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "description": "Job Application Heatmap Widget",
+  "dependencies": {
+    "electron": "^41.2.0",
+    "googleapis": "^171.4.0"
+  }
+}
