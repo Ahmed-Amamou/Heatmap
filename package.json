@@ -3,12 +3,47 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --win portable",
+    "dist": "electron-builder --win nsis"
   },
   "description": "Job Application Heatmap Widget",
+  "build": {
+    "appId": "com.heatmap.widget",
+    "productName": "Heatmap",
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "src/**/*",
+      ".env"
+    ],
+    "extraResources": [
+      {
+        "from": "credentials.json",
+        "to": "credentials.json"
+      },
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ]
+  },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "electron": "^41.2.0",
     "googleapis": "^171.4.0"
+  },
+  "devDependencies": {
+    "electron": "^41.2.0",
+    "electron-builder": "^25.1.8"
   }
 }
