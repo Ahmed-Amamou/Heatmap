@@ -1,7 +1,31 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
-const { fetchApplicationDates } = require('./src/sheets');
+
+// ── Config persistence (replaces .env) ──
+const configFile = path.join(app.getPath('userData'), 'config.json');
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(configFile)) {
+      return JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    }
+  } catch {}
+  return { spreadsheetId: '', sheetName: 'Sheet1', dateColumn: 'F' };
+}
+
+function saveConfig(config) {
+  fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+}
+
+// ── Lazy-load sheets module (needs config) ──
+let fetchApplicationDates;
+function initSheets() {
+  const config = loadConfig();
+  const { createFetcher } = require('./src/sheets');
+  fetchApplicationDates = createFetcher(config);
+}
 
 // Auto-launch on Windows startup
 app.setLoginItemSettings({
@@ -9,13 +33,14 @@ app.setLoginItemSettings({
   path: app.getPath('exe'),
 });
 
-// Single instance lock — prevent duplicate windows on startup
+// Single instance lock
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 }
 
 let mainWindow;
+let settingsWindow;
 let tray;
 let refreshInterval;
 
@@ -26,7 +51,6 @@ function loadPosition() {
   try {
     if (fs.existsSync(positionFile)) {
       const data = JSON.parse(fs.readFileSync(positionFile, 'utf8'));
-      // Validate position is on a visible display
       const displays = screen.getAllDisplays();
       const onScreen = displays.some(d => {
         const b = d.bounds;
@@ -45,6 +69,21 @@ function savePosition() {
   fs.writeFileSync(positionFile, JSON.stringify({ x, y }));
 }
 
+// ── Tray icon ──
+function getTrayIcon() {
+  const icoPath = path.join(__dirname, 'assets', 'icon.ico');
+  if (fs.existsSync(icoPath)) {
+    return nativeImage.createFromPath(icoPath).resize({ width: 16, height: 16 });
+  }
+  return nativeImage.createFromBuffer(
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKklEQVQ4T2NkYPj/n4EBFTAiqjMy' +
+      'MDDCVWHL4zQA2Rl0A0ZdMOoCkl0AAJFhCAkR0pWoAAAAAElFTkSuQmCC',
+      'base64'
+    )
+  );
+}
+
 function createWindow() {
   const pos = loadPosition();
 
@@ -59,6 +98,7 @@ function createWindow() {
     skipTaskbar: false,
     show: false,
     paintWhenInitiallyHidden: false,
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -69,15 +109,12 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  // Smooth show after content loads
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
 
-  // Save position on move
   mainWindow.on('moved', savePosition);
 
-  // Minimize to tray instead of closing via window controls
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -85,7 +122,6 @@ function createWindow() {
     }
   });
 
-  // Auto-refresh every 30 minutes
   refreshInterval = setInterval(async () => {
     try {
       const data = await fetchApplicationDates();
@@ -96,16 +132,43 @@ function createWindow() {
   }, 30 * 60 * 1000);
 }
 
-function createTray() {
-  const icon = nativeImage.createFromBuffer(
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKklEQVQ4T2NkYPj/n4EBFTAiqjMy' +
-      'MDDCVWHL4zQA2Rl0A0ZdMOoCkl0AAJFhCAkR0pWoAAAAAElFTkSuQmCC',
-      'base64'
-    )
-  );
+function createSettingsWindow() {
+  if (settingsWindow) {
+    settingsWindow.show();
+    settingsWindow.focus();
+    return;
+  }
 
-  tray = new Tray(icon);
+  settingsWindow = new BrowserWindow({
+    width: 400,
+    height: 340,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    parent: mainWindow,
+    modal: true,
+    show: false,
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  settingsWindow.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
+
+  settingsWindow.once('ready-to-show', () => {
+    settingsWindow.show();
+  });
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+}
+
+function createTray() {
+  tray = new Tray(getTrayIcon());
   tray.setToolTip('Heatmap');
 
   const contextMenu = Menu.buildFromTemplate([
@@ -127,7 +190,15 @@ function createTray() {
         }
       },
     },
+    {
+      label: 'Settings',
+      click: () => createSettingsWindow(),
+    },
     { type: 'separator' },
+    {
+      label: 'Check for Updates',
+      click: () => autoUpdater.checkForUpdatesAndNotify(),
+    },
     {
       label: 'Quit',
       click: () => {
@@ -148,7 +219,40 @@ function createTray() {
   });
 }
 
-// IPC handlers
+// ── Auto-updater ──
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', () => {
+    mainWindow.webContents.send('update-status', 'Downloading update...');
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    mainWindow.webContents.send('update-status', 'Update ready — restart to apply');
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Restart & Update',
+        click: () => autoUpdater.quitAndInstall(),
+      },
+      {
+        label: 'Later',
+        click: () => {},
+      },
+    ]);
+    tray.setContextMenu(contextMenu);
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Auto-update error:', err.message);
+  });
+
+  // Check on launch, then every 4 hours
+  autoUpdater.checkForUpdatesAndNotify();
+  setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 4 * 60 * 60 * 1000);
+}
+
+// ── IPC handlers ──
 ipcMain.handle('fetch-application-data', async () => {
   try {
     return await fetchApplicationDates();
@@ -162,6 +266,38 @@ ipcMain.handle('toggle-always-on-top', () => {
   const current = mainWindow.isAlwaysOnTop();
   mainWindow.setAlwaysOnTop(!current);
   return !current;
+});
+
+ipcMain.handle('get-config', () => {
+  return loadConfig();
+});
+
+ipcMain.handle('save-config', (_event, config) => {
+  saveConfig(config);
+  initSheets();
+  return { success: true };
+});
+
+ipcMain.handle('pick-credentials-file', async () => {
+  const result = await dialog.showOpenDialog(settingsWindow || mainWindow, {
+    title: 'Select Google Service Account credentials.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+
+  const src = result.filePaths[0];
+  const dest = path.join(app.getPath('userData'), 'credentials.json');
+  fs.copyFileSync(src, dest);
+  return dest;
+});
+
+ipcMain.on('open-settings', () => {
+  createSettingsWindow();
+});
+
+ipcMain.on('close-settings', () => {
+  if (settingsWindow) settingsWindow.close();
 });
 
 ipcMain.on('minimize-to-tray', () => {
@@ -181,8 +317,10 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  initSheets();
   createWindow();
   createTray();
+  setupAutoUpdater();
 });
 
 app.on('window-all-closed', () => {

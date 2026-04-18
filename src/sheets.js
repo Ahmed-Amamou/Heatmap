@@ -3,27 +3,22 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 
-const isPackaged = app.isPackaged;
-const rootPath = isPackaged ? path.join(process.resourcesPath) : path.join(__dirname, '..');
+function getCredentialsPath() {
+  // Check userData first (set via settings UI), then project root
+  const userDataPath = path.join(app.getPath('userData'), 'credentials.json');
+  if (fs.existsSync(userDataPath)) return userDataPath;
 
-require('dotenv').config({ path: path.join(rootPath, '.env'), quiet: true });
+  const rootPath = path.join(__dirname, '..', 'credentials.json');
+  if (fs.existsSync(rootPath)) return rootPath;
 
-const CONFIG = {
-  SPREADSHEET_ID: process.env.SPREADSHEET_ID,
-  SHEET_NAME: process.env.SHEET_NAME || 'Sheet1',
-  DATE_COLUMN: process.env.DATE_COLUMN || 'F',
-  CREDENTIALS_PATH: isPackaged
-    ? path.join(process.resourcesPath, 'credentials.json')
-    : path.join(__dirname, '..', 'credentials.json'),
-};
+  return null;
+}
 
 async function getAuthClient() {
-  const credentialsPath = CONFIG.CREDENTIALS_PATH;
+  const credentialsPath = getCredentialsPath();
 
-  if (!fs.existsSync(credentialsPath)) {
-    throw new Error(
-      'credentials.json not found. Please download your Google Service Account key and place it in the project root.'
-    );
+  if (!credentialsPath) {
+    throw new Error('No credentials.json found. Open Settings to import your Google Service Account key.');
   }
 
   const auth = new google.auth.GoogleAuth({
@@ -34,64 +29,66 @@ async function getAuthClient() {
   return auth.getClient();
 }
 
-async function fetchApplicationDates() {
-  const authClient = await getAuthClient();
-  const sheets = google.sheets({ version: 'v4', auth: authClient });
+function createFetcher(config) {
+  return async function fetchApplicationDates() {
+    if (!config.spreadsheetId) {
+      throw new Error('No Spreadsheet ID configured. Open Settings to set it up.');
+    }
 
-  const range = `${CONFIG.SHEET_NAME}!${CONFIG.DATE_COLUMN}:${CONFIG.DATE_COLUMN}`;
+    const authClient = await getAuthClient();
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: CONFIG.SPREADSHEET_ID,
-    range,
-  });
+    const sheetName = config.sheetName || 'Sheet1';
+    const dateColumn = config.dateColumn || 'F';
+    const range = `${sheetName}!${dateColumn}:${dateColumn}`;
 
-  const rows = response.data.values;
-  if (!rows || rows.length === 0) {
-    return {};
-  }
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: config.spreadsheetId,
+      range,
+    });
 
-  // Skip header row, count applications per date
-  const dateCounts = {};
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return {};
+    }
 
-  for (let i = 1; i < rows.length; i++) {
-    const raw = rows[i][0];
-    if (!raw) continue;
+    const dateCounts = {};
 
-    const date = parseDate(raw);
-    if (!date) continue;
+    for (let i = 1; i < rows.length; i++) {
+      const raw = rows[i][0];
+      if (!raw) continue;
 
-    const key = formatDateKey(date);
-    dateCounts[key] = (dateCounts[key] || 0) + 1;
-  }
+      const date = parseDate(raw);
+      if (!date) continue;
 
-  return dateCounts;
+      const key = formatDateKey(date);
+      dateCounts[key] = (dateCounts[key] || 0) + 1;
+    }
+
+    return dateCounts;
+  };
 }
 
 function parseDate(raw) {
-  // Handle various date formats
   const str = String(raw).trim();
 
-  // Try ISO format (YYYY-MM-DD)
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
     const d = new Date(str + 'T00:00:00');
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // Try MM/DD/YYYY or M/D/YYYY
   if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
     const parts = str.split('/');
     const d = new Date(parts[2], parts[0] - 1, parts[1]);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // Try DD/MM/YYYY
   if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(str)) {
     const parts = str.split('-');
     const d = new Date(parts[2], parts[1] - 1, parts[0]);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // Fallback: let JS parse it
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -103,4 +100,4 @@ function formatDateKey(date) {
   return `${y}-${m}-${d}`;
 }
 
-module.exports = { fetchApplicationDates, CONFIG };
+module.exports = { createFetcher };

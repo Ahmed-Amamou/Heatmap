@@ -175,6 +175,10 @@ document.getElementById('btn-minimize').addEventListener('click', () => {
 
 document.getElementById('btn-refresh').addEventListener('click', loadData);
 
+document.getElementById('btn-settings').addEventListener('click', () => {
+  window.heatmapAPI.openSettings();
+});
+
 document.getElementById('btn-pin').addEventListener('click', async () => {
   const pinned = await window.heatmapAPI.toggleAlwaysOnTop();
   document.getElementById('btn-pin').classList.toggle('active', pinned);

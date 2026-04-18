@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div id="settings-panel">
+    <div id="drag-overlay"></div>
+
+    <div id="settings-header">
+      <span class="settings-title">Settings</span>
+      <button id="btn-close-settings">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="settings-form">
+      <div class="field">
+        <label for="spreadsheetId">Spreadsheet ID</label>
+        <input type="text" id="spreadsheetId" placeholder="e.g. 1BxiMVs0XRA5nFMdKvBd..." spellcheck="false">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="sheetName">Sheet Name</label>
+          <input type="text" id="sheetName" placeholder="Sheet1" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="dateColumn">Date Column</label>
+          <input type="text" id="dateColumn" placeholder="F" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Google Credentials</label>
+        <button id="btn-import-creds" class="btn-secondary">Import credentials.json</button>
+        <span id="creds-status" class="field-hint"></span>
+      </div>
+
+      <div class="actions">
+        <button id="btn-save" class="btn-primary">Save & Reload</button>
+      </div>
+    </div>
+  </div>
+  <script src="settings.js"></script>
+</body>
+</html>
