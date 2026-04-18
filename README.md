@@ -9,41 +9,39 @@ A minimal Electron desktop widget that visualizes your job application activity 
 ## Features
 
 - **GitHub-style heatmap** — 4-month rolling grid with green intensity scaling
-- **Google Sheets sync** — reads application dates from your spreadsheet via service account
-- **Streak counter** — tracks consecutive days of applications
-- **System tray** — refresh, pin on top, or quit from the tray icon
+- **Glassmorphism UI** — frosted glass dark theme with smooth animations
+- **Google Sheets sync** — reads application dates via service account
+- **Settings UI** — configure spreadsheet, import credentials from the app
+- **Auto-updater** — downloads new versions from GitHub Releases automatically
+- **System tray** — refresh, pin, settings, quit from the tray icon
 - **Auto-refresh** — pulls new data every 30 minutes
-- **Frameless & draggable** — clean overlay widget with dark theme
+- **Position memory** — remembers where you placed the widget
+- **Startup launch** — runs on Windows login automatically
 
-## Setup
+## Install
 
-**1. Clone & install**
+Download the latest `.exe` from [Releases](https://github.com/Ahmed-Amamou/Heatmap/releases), run it, and configure from the settings panel inside the app.
+
+## Setup from Source
 
 ```bash
 git clone git@github.com:Ahmed-Amamou/Heatmap.git
 cd Heatmap
 npm install
-```
-
-**2. Google Sheets API**
-
-- Create a [Service Account](https://console.cloud.google.com/iam-admin/serviceaccounts) and enable the Sheets API
-- Download the key as `credentials.json` into the project root
-- Share your spreadsheet with the service account email
-
-**3. Configure `.env`**
-
-```env
-SPREADSHEET_ID=your_spreadsheet_id
-SHEET_NAME=Sheet1
-DATE_COLUMN=F
-```
-
-**4. Run**
-
-```bash
 npm start
 ```
+
+**Google Sheets API** — Create a [Service Account](https://console.cloud.google.com/iam-admin/serviceaccounts), enable the Sheets API, download the key, and import it via the in-app Settings panel.
+
+## Releasing a New Version
+
+```bash
+# Bump version in package.json, then:
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+GitHub Actions builds the installer and publishes it as a Release. The app auto-updates on next launch.
 
 ## Tech Stack
 
@@ -52,7 +50,8 @@ npm start
 | Shell | Electron |
 | Data | Google Sheets API v4 |
 | Auth | Service Account (OAuth2) |
-| Config | dotenv |
+| Updates | electron-updater + GitHub Releases |
+| CI/CD | GitHub Actions |
 
 ## License
 
