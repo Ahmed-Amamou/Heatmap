@@ -12,8 +12,10 @@
     "appId": "com.heatmap.widget",
     "productName": "Heatmap",
     "win": {
-      "target": ["nsis", "portable"],
-      "icon": "assets/icon.png"
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": true,
@@ -25,21 +27,16 @@
       "preload.js",
       "renderer/**/*",
       "src/**/*",
-      ".env"
+      "assets/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "credentials.json",
-        "to": "credentials.json"
-      },
-      {
-        "from": ".env",
-        "to": ".env"
-      }
-    ]
+    "publish": {
+      "provider": "github",
+      "owner": "Ahmed-Amamou",
+      "repo": "Heatmap"
+    }
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
+    "electron-updater": "^6.8.3",
     "googleapis": "^171.4.0"
   },
   "devDependencies": {
