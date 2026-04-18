@@ -5,8 +5,7 @@ const statsEl = document.getElementById('stats');
 const loadingEl = document.getElementById('loading');
 const errorEl = document.getElementById('error');
 
-const LEVELS = [0, 1, 2, 3, 4];
-const WEEKS_TO_SHOW = 18; // ~4 months
+const WEEKS_TO_SHOW = 18;
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function getLevel(count) {
@@ -37,10 +36,8 @@ function calculateStreak(dateCounts) {
   let streak = 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const checkDate = new Date(today);
 
-  // If no applications today, start checking from yesterday
   if (!dateCounts[dateToKey(checkDate)]) {
     checkDate.setDate(checkDate.getDate() - 1);
   }
@@ -60,17 +57,17 @@ function renderHeatmap(dateCounts) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Find the start date (go back WEEKS_TO_SHOW weeks, aligned to Sunday)
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - (WEEKS_TO_SHOW * 7) + (7 - today.getDay()));
 
   const totalApps = Object.values(dateCounts).reduce((sum, c) => sum + c, 0);
   const streak = calculateStreak(dateCounts);
 
-  statsEl.textContent = `${totalApps} applications · ${streak} day streak 🔥`;
+  statsEl.textContent = `${totalApps} sent · ${streak}d streak`;
 
   let lastMonth = -1;
-  const cellWidth = 16; // 13px cell + 3px gap
+  const cellWidth = 16;
+  let cellIndex = 0;
 
   for (let week = 0; week < WEEKS_TO_SHOW; week++) {
     const weekEl = document.createElement('div');
@@ -83,7 +80,6 @@ function renderHeatmap(dateCounts) {
       const dayEl = document.createElement('div');
       dayEl.className = 'day';
 
-      // Mark future days as empty
       if (currentDate > today) {
         dayEl.classList.add('empty');
         weekEl.appendChild(dayEl);
@@ -98,13 +94,18 @@ function renderHeatmap(dateCounts) {
       dayEl.setAttribute('data-date', key);
       dayEl.setAttribute('data-count', count);
 
+      // Staggered entrance animation
+      dayEl.classList.add('animate-in');
+      dayEl.style.animationDelay = `${cellIndex * 3}ms`;
+      cellIndex++;
+
       // Tooltip events
-      dayEl.addEventListener('mouseenter', (e) => showTooltip(e, currentDate, count));
+      const dateCopy = new Date(currentDate);
+      dayEl.addEventListener('mouseenter', (e) => showTooltip(e, dateCopy, count));
       dayEl.addEventListener('mouseleave', hideTooltip);
 
       weekEl.appendChild(dayEl);
 
-      // Month labels — show when month changes (check first day of each week)
       if (day === 0) {
         const month = currentDate.getMonth();
         if (month !== lastMonth) {
@@ -131,7 +132,7 @@ function showTooltip(event, date, count) {
   const widgetRect = document.getElementById('widget').getBoundingClientRect();
 
   tooltipEl.style.left = `${rect.left - widgetRect.left + rect.width / 2 - tooltipEl.offsetWidth / 2}px`;
-  tooltipEl.style.top = `${rect.top - widgetRect.top - tooltipEl.offsetHeight - 6}px`;
+  tooltipEl.style.top = `${rect.top - widgetRect.top - tooltipEl.offsetHeight - 8}px`;
 }
 
 function hideTooltip() {
@@ -139,6 +140,8 @@ function hideTooltip() {
 }
 
 async function loadData() {
+  const refreshBtn = document.getElementById('btn-refresh');
+  refreshBtn.classList.add('spinning');
   loadingEl.classList.remove('hidden');
   errorEl.classList.add('hidden');
 
@@ -153,11 +156,11 @@ async function loadData() {
     renderHeatmap(data);
   } catch (err) {
     loadingEl.classList.add('hidden');
-    errorEl.textContent = `Error: ${err.message}`;
+    errorEl.textContent = err.message;
     errorEl.classList.remove('hidden');
-
-    // Still render an empty heatmap
     renderHeatmap({});
+  } finally {
+    refreshBtn.classList.remove('spinning');
   }
 }
 
@@ -166,14 +169,18 @@ document.getElementById('btn-close').addEventListener('click', () => {
   window.heatmapAPI.closeApp();
 });
 
+document.getElementById('btn-minimize').addEventListener('click', () => {
+  window.heatmapAPI.minimizeToTray();
+});
+
 document.getElementById('btn-refresh').addEventListener('click', loadData);
 
 document.getElementById('btn-pin').addEventListener('click', async () => {
   const pinned = await window.heatmapAPI.toggleAlwaysOnTop();
-  document.getElementById('btn-pin').style.opacity = pinned ? '1' : '0.5';
+  document.getElementById('btn-pin').classList.toggle('active', pinned);
 });
 
-// Listen for auto-refresh from main process
+// Listen for auto-refresh
 window.heatmapAPI.onDataRefreshed((data) => {
   if (!data.error) {
     renderHeatmap(data);

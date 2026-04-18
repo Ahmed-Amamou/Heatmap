@@ -8,17 +8,38 @@
 </head>
 <body>
   <div id="widget">
+    <!-- Full-widget drag region -->
+    <div id="drag-overlay"></div>
+
     <div id="titlebar">
-      <div id="drag-region">
-        <span id="title">Job Applications</span>
+      <div id="title-group">
+        <span id="title">Applications</span>
         <span id="stats"></span>
       </div>
       <div id="controls">
-        <button id="btn-pin" title="Toggle Always on Top">📌</button>
-        <button id="btn-refresh" title="Refresh Data">🔄</button>
-        <button id="btn-close" title="Close">✕</button>
+        <button id="btn-pin" title="Pin on top">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.456.734a1.75 1.75 0 0 1 2.826.504l.613 1.327a3.08 3.08 0 0 0 2.084 1.707l2.454.584c1.332.317 1.8 1.972.832 2.94L11.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06L10 11.06l-2.204 2.205c-.968.968-2.623.5-2.94-.832l-.584-2.454a3.08 3.08 0 0 0-1.707-2.084l-1.327-.613a1.75 1.75 0 0 1-.504-2.826L4.456.734Z"/>
+          </svg>
+        </button>
+        <button id="btn-refresh" title="Refresh">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.001 7.001 0 0 1 14.95 7.16a.75.75 0 1 1-1.49.178A5.501 5.501 0 0 0 8 2.5ZM1.705 8.005a.75.75 0 0 1 .834.656 5.501 5.501 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.001 7.001 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834Z"/>
+          </svg>
+        </button>
+        <button id="btn-minimize" title="Minimize to tray">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.75 7.25a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z"/>
+          </svg>
+        </button>
+        <button id="btn-close" title="Quit">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+          </svg>
+        </button>
       </div>
     </div>
+
     <div id="heatmap-container">
       <div id="month-labels"></div>
       <div id="heatmap-wrapper">
@@ -34,6 +55,7 @@
         <div id="heatmap"></div>
       </div>
     </div>
+
     <div id="legend">
       <span>Less</span>
       <div class="legend-cell" data-level="0"></div>
@@ -43,8 +65,9 @@
       <div class="legend-cell" data-level="4"></div>
       <span>More</span>
     </div>
+
     <div id="tooltip" class="hidden"></div>
-    <div id="loading">Loading data...</div>
+    <div id="loading">Loading data</div>
     <div id="error" class="hidden"></div>
   </div>
   <script src="app.js"></script>
