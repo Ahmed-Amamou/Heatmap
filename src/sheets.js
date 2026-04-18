@@ -1,13 +1,20 @@
 const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { app } = require('electron');
+
+const isPackaged = app.isPackaged;
+const rootPath = isPackaged ? path.join(process.resourcesPath) : path.join(__dirname, '..');
+
+require('dotenv').config({ path: path.join(rootPath, '.env'), quiet: true });
 
 const CONFIG = {
   SPREADSHEET_ID: process.env.SPREADSHEET_ID,
   SHEET_NAME: process.env.SHEET_NAME || 'Sheet1',
   DATE_COLUMN: process.env.DATE_COLUMN || 'F',
-  CREDENTIALS_PATH: path.join(__dirname, '..', 'credentials.json'),
+  CREDENTIALS_PATH: isPackaged
+    ? path.join(process.resourcesPath, 'credentials.json')
+    : path.join(__dirname, '..', 'credentials.json'),
 };
 
 async function getAuthClient() {
