@@ -97,6 +97,17 @@
       </form>
     </div>
   </div>
+
+  <div id="confirm-overlay" class="hidden">
+    <div id="confirm-box">
+      <div id="confirm-title">Delete application?</div>
+      <div id="confirm-message">This removes it from the local database and the Google Sheet. This cannot be undone.</div>
+      <div id="confirm-actions">
+        <button type="button" id="confirm-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="confirm-ok" class="btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
   <script src="manager.js"></script>
 </body>
 </html>

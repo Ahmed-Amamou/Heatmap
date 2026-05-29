@@ -266,3 +266,92 @@ html, body {
 .btn-danger:hover {
   background: rgba(248, 81, 73, 0.22);
 }
+
+/* ── Scrollbars ── */
+#list-pane::-webkit-scrollbar,
+#editor::-webkit-scrollbar {
+  width: 10px;
+}
+
+#list-pane::-webkit-scrollbar-track,
+#editor::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#list-pane::-webkit-scrollbar-thumb,
+#editor::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.25);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+#list-pane::-webkit-scrollbar-thumb:hover,
+#editor::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 148, 158, 0.45);
+  background-clip: padding-box;
+}
+
+/* ── Date picker ── */
+.ed-grid input[type="date"] {
+  color-scheme: dark;
+}
+
+.ed-grid input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.ed-grid input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* ── Themed confirm dialog ── */
+#confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+#confirm-box {
+  background: rgba(22, 27, 34, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px 22px;
+  width: 300px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  animation: confirmPop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes confirmPop {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+#confirm-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f6fc;
+  margin-bottom: 6px;
+}
+
+#confirm-message {
+  font-size: 12px;
+  color: rgba(201, 209, 217, 0.8);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+#confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

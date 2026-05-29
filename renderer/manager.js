@@ -90,6 +90,31 @@ document.getElementById('btn-close-manager').addEventListener('click', () => {
   window.heatmapAPI.closeManager();
 });
 
+// Themed confirmation dialog, returns a promise resolving true/false.
+const confirmOverlay = el('confirm-overlay');
+function confirmDialog() {
+  return new Promise((resolve) => {
+    confirmOverlay.classList.remove('hidden');
+
+    const cleanup = (result) => {
+      confirmOverlay.classList.add('hidden');
+      el('confirm-ok').removeEventListener('click', onOk);
+      el('confirm-cancel').removeEventListener('click', onCancel);
+      confirmOverlay.removeEventListener('click', onBackdrop);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onBackdrop = (e) => {
+      if (e.target === confirmOverlay) cleanup(false);
+    };
+
+    el('confirm-ok').addEventListener('click', onOk);
+    el('confirm-cancel').addEventListener('click', onCancel);
+    confirmOverlay.addEventListener('click', onBackdrop);
+  });
+}
+
 editor.addEventListener('submit', async (e) => {
   e.preventDefault();
   const appData = { id: el('f-id').value || undefined };
@@ -116,7 +141,7 @@ editor.addEventListener('submit', async (e) => {
 deleteBtn.addEventListener('click', async () => {
   const id = el('f-id').value;
   if (!id) return;
-  if (!confirm('Delete this application?')) return;
+  if (!(await confirmDialog())) return;
 
   const { syncError } = await window.heatmapAPI.deleteApplication(id);
   await loadApplications();
