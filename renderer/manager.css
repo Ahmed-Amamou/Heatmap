@@ -543,6 +543,15 @@ html, body {
   color: #39d353;
 }
 
+/* Derived rejection (no response past threshold) — distinguished from an
+   explicit Rejected by a dashed, muted treatment. */
+.status-pill.pill-auto {
+  background: rgba(248, 81, 73, 0.08);
+  color: rgba(248, 81, 73, 0.8);
+  border: 1px dashed rgba(248, 81, 73, 0.4);
+  cursor: help;
+}
+
 .pill-extra {
   font-size: 10px;
   font-weight: 600;

@@ -25,6 +25,7 @@ let currentFilter = 'all';
 let currentSort = 'newest';
 
 const STALE_DAYS = 14;
+const AUTO_REJECT_DAYS = 100;
 
 function el(id) {
   return document.getElementById(id);
@@ -80,7 +81,7 @@ function render() {
       <td class="title-cell">${escapeHtml(app.job_title) || '—'}</td>
       <td>${escapeHtml(app.company) || '—'}</td>
       <td>${escapeHtml(app.applying_date) || '—'}${followup}</td>
-      <td>${renderStatusPills(app.status)}</td>
+      <td>${renderStatusPills(app)}</td>
     `;
     tr.addEventListener('click', () => openEditor(app));
     tbody.appendChild(tr);
@@ -103,8 +104,15 @@ function splitStatus(status) {
 }
 
 // Show the final/outcome stage as the main pill, with a count of the rest.
-function renderStatusPills(status) {
-  const parts = splitStatus(status);
+// Silent applications past the threshold render as a derived "Rejected" pill.
+function renderStatusPills(app) {
+  const parts = splitStatus(app.status);
+
+  if (isAutoRejected(app)) {
+    const extra = parts.length ? `<span class="pill-extra">+${parts.length}</span>` : '';
+    return `<span class="status-pill pill-auto" title="No response for ${AUTO_REJECT_DAYS}+ days — auto-rejected">Rejected</span>${extra}`;
+  }
+
   if (parts.length === 0) return '\u2014';
 
   const last = parts[parts.length - 1];
@@ -138,15 +146,6 @@ const reachedInterview = (parts) => hasOffer(parts) || hasAny(parts, INTERVIEW_S
 const reachedScreen = (parts) => reachedInterview(parts) || hasAny(parts, SCREEN_STAGES);
 const responded = (parts) => reachedScreen(parts) || hasReject(parts);
 
-// Final outcome bucket, in priority order.
-function outcomeOf(app) {
-  const parts = statusParts(app);
-  if (hasOffer(parts)) return 'offer';
-  if (hasReject(parts)) return 'rejected';
-  if (reachedScreen(parts)) return 'interviewing';
-  return 'active';
-}
-
 function daysSince(dateStr) {
   if (!dateStr) return null;
   const d = new Date(dateStr + 'T00:00:00');
@@ -154,7 +153,27 @@ function daysSince(dateStr) {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
-// Stale = still just "applied", no response, and old enough to chase.
+// A would-be active application gone silent past the threshold is treated as
+// rejected. This is derived only — the stored status and sheet are untouched.
+function isAutoRejected(app) {
+  const parts = statusParts(app);
+  if (hasOffer(parts) || hasReject(parts) || reachedScreen(parts)) return false;
+  const days = daysSince(app.applying_date);
+  return days != null && days >= AUTO_REJECT_DAYS;
+}
+
+// Final outcome bucket, in priority order.
+function outcomeOf(app) {
+  const parts = statusParts(app);
+  if (hasOffer(parts)) return 'offer';
+  if (hasReject(parts)) return 'rejected';
+  if (reachedScreen(parts)) return 'interviewing';
+  if (isAutoRejected(app)) return 'rejected';
+  return 'active';
+}
+
+// Stale = still just "applied", no response, old enough to chase, but not yet
+// past the auto-reject threshold.
 function needsFollowup(app) {
   if (outcomeOf(app) !== 'active') return false;
   const days = daysSince(app.applying_date);
