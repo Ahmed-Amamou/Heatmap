@@ -336,17 +336,68 @@ document.getElementById('btn-stats').addEventListener('click', () => {
   if (!collapsed) applyFunnelWidths();
 });
 
-document.getElementById('sort').addEventListener('change', (e) => {
-  currentSort = e.target.value;
-  render();
+// ── Sort dropdown ──
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'company', label: 'Company' },
+  { value: 'status', label: 'Status' },
+];
+
+const sortDd = el('sort-dd');
+const sortControl = el('sort-control');
+const sortPanel = el('sort-panel');
+
+function buildSortPanel() {
+  sortPanel.innerHTML = '';
+  for (const opt of SORT_OPTIONS) {
+    const row = document.createElement('div');
+    row.className = 'dd-option' + (opt.value === currentSort ? ' selected' : '');
+    row.textContent = opt.label;
+    row.addEventListener('click', () => {
+      currentSort = opt.value;
+      el('sort-value').textContent = opt.label;
+      closeSortPanel();
+      buildSortPanel();
+      render();
+    });
+    sortPanel.appendChild(row);
+  }
+}
+
+function closeSortPanel() {
+  sortPanel.classList.add('hidden');
+  sortDd.classList.remove('open');
+}
+
+sortControl.addEventListener('click', () => {
+  const isOpen = !sortPanel.classList.contains('hidden');
+  sortPanel.classList.toggle('hidden', isOpen);
+  sortDd.classList.toggle('open', !isOpen);
 });
+
+sortControl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    sortControl.click();
+  } else if (e.key === 'Escape') {
+    closeSortPanel();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!sortDd.contains(e.target)) closeSortPanel();
+});
+
+buildSortPanel();
 
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', (e) => {
   if (!confirmOverlay.classList.contains('hidden')) return; // dialog has its own keys
 
   if (e.key === 'Escape') {
-    if (!statusPanel.classList.contains('hidden')) closeStatusPanel();
+    if (!sortPanel.classList.contains('hidden')) closeSortPanel();
+    else if (!statusPanel.classList.contains('hidden')) closeStatusPanel();
     else if (!editor.classList.contains('hidden')) closeEditor();
     else window.heatmapAPI.closeManager();
     return;
