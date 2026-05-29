@@ -175,6 +175,10 @@ document.getElementById('btn-minimize').addEventListener('click', () => {
 
 document.getElementById('btn-refresh').addEventListener('click', loadData);
 
+document.getElementById('btn-manage').addEventListener('click', () => {
+  window.heatmapAPI.openManager();
+});
+
 document.getElementById('btn-settings').addEventListener('click', () => {
   window.heatmapAPI.openSettings();
 });

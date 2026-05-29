@@ -19,12 +19,14 @@ function saveConfig(config) {
   fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
 }
 
-// ── Sheets importer + local DB ──
+// ── Sheets importer + syncer + local DB ──
 let importFromSheet;
+let sheetSyncer;
 function initSheets() {
   const config = loadConfig();
-  const { createImporter } = require('./src/sheets');
+  const { createImporter, createSyncer } = require('./src/sheets');
   importFromSheet = createImporter(config);
+  sheetSyncer = createSyncer(config);
 }
 
 // Pull latest from the sheet into SQLite, then read counts from the DB.
@@ -59,6 +61,7 @@ if (!gotLock) {
 
 let mainWindow;
 let settingsWindow;
+let managerWindow;
 let tray;
 let refreshInterval;
 
@@ -181,6 +184,40 @@ function createSettingsWindow() {
   });
 }
 
+function createManagerWindow() {
+  if (managerWindow) {
+    managerWindow.show();
+    managerWindow.focus();
+    return;
+  }
+
+  managerWindow = new BrowserWindow({
+    width: 860,
+    height: 620,
+    minWidth: 640,
+    minHeight: 480,
+    frame: false,
+    transparent: true,
+    show: false,
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  managerWindow.loadFile(path.join(__dirname, 'renderer', 'manager.html'));
+
+  managerWindow.once('ready-to-show', () => {
+    managerWindow.show();
+  });
+
+  managerWindow.on('closed', () => {
+    managerWindow = null;
+  });
+}
+
 function createTray() {
   tray = new Tray(getTrayIcon());
   tray.setToolTip('Heatmap');
@@ -192,6 +229,10 @@ function createTray() {
         mainWindow.show();
         mainWindow.focus();
       },
+    },
+    {
+      label: 'Manage Applications',
+      click: () => createManagerWindow(),
     },
     {
       label: 'Refresh Data',
@@ -295,6 +336,59 @@ ipcMain.handle('pick-credentials-file', async () => {
   const dest = path.join(app.getPath('userData'), 'credentials.json');
   fs.copyFileSync(src, dest);
   return dest;
+});
+
+ipcMain.handle('list-applications', () => {
+  return require('./src/db').listApplications();
+});
+
+// Save (add/edit) locally, then best-effort push to the sheet. The sheet sync
+// failing (offline, no creds) must not lose the local write.
+ipcMain.handle('save-application', async (_event, appData) => {
+  const db = require('./src/db');
+  const id = db.upsertApplication(appData);
+  const saved = db.getApplication(id);
+
+  let syncError = null;
+  try {
+    await sheetSyncer.upsertRow(saved);
+  } catch (err) {
+    syncError = err.message;
+    console.error('Sheet sync (upsert) failed:', err.message);
+  }
+
+  notifyDataChanged();
+  return { id, syncError };
+});
+
+ipcMain.handle('delete-application', async (_event, id) => {
+  const db = require('./src/db');
+  db.deleteApplication(id);
+
+  let syncError = null;
+  try {
+    await sheetSyncer.deleteRow(id);
+  } catch (err) {
+    syncError = err.message;
+    console.error('Sheet sync (delete) failed:', err.message);
+  }
+
+  notifyDataChanged();
+  return { syncError };
+});
+
+// Refresh the heatmap counts in any open windows after a local mutation.
+function notifyDataChanged() {
+  const counts = require('./src/db').getDateCounts();
+  if (mainWindow) mainWindow.webContents.send('data-refreshed', counts);
+}
+
+ipcMain.on('open-manager', () => {
+  createManagerWindow();
+});
+
+ipcMain.on('close-manager', () => {
+  if (managerWindow) managerWindow.close();
 });
 
 ipcMain.on('open-settings', () => {

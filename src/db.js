@@ -152,6 +152,19 @@ function listApplications() {
   return rows;
 }
 
+function getApplication(id) {
+  const stmt = db.prepare('SELECT * FROM applications WHERE id = ?');
+  stmt.bind([id]);
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+
+function deleteApplication(id) {
+  db.run('DELETE FROM applications WHERE id = ?', [id]);
+  persist();
+}
+
 module.exports = {
   initDb,
   getDb,
@@ -159,4 +172,6 @@ module.exports = {
   upsertMany,
   getDateCounts,
   listApplications,
+  getApplication,
+  deleteApplication,
 };

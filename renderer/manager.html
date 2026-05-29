@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Applications</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <div id="manager">
+    <div id="manager-header">
+      <div class="header-left">
+        <span class="manager-title">Applications</span>
+        <span id="count-badge"></span>
+      </div>
+      <div class="header-actions">
+        <input type="search" id="search" placeholder="Search…" spellcheck="false">
+        <button id="btn-new" class="btn-primary">+ New</button>
+        <button id="btn-close-manager" title="Close">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="manager-body">
+      <div id="list-pane">
+        <table id="apps-table">
+          <thead>
+            <tr>
+              <th>Job Title</th>
+              <th>Company</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="apps-tbody"></tbody>
+        </table>
+        <div id="empty-state" class="hidden">No applications yet. Click <b>+ New</b> to add one.</div>
+      </div>
+
+      <form id="editor" class="hidden">
+        <input type="hidden" id="f-id">
+        <div class="ed-grid">
+          <div class="field span-2">
+            <label for="f-job_title">Job Title</label>
+            <input type="text" id="f-job_title" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="f-company">Company</label>
+            <input type="text" id="f-company" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="f-location">Location</label>
+            <input type="text" id="f-location" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="f-applying_date">Applying Date</label>
+            <input type="date" id="f-applying_date">
+          </div>
+          <div class="field">
+            <label for="f-job_type">Job Type</label>
+            <input type="text" id="f-job_type" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="f-status">Status</label>
+            <input type="text" id="f-status" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="f-resume_version">Resume Version</label>
+            <input type="text" id="f-resume_version" spellcheck="false">
+          </div>
+          <div class="field span-2">
+            <label for="f-contact">Contact</label>
+            <input type="text" id="f-contact" spellcheck="false">
+          </div>
+          <div class="field span-2">
+            <label for="f-description">Description</label>
+            <textarea id="f-description" rows="2" spellcheck="false"></textarea>
+          </div>
+          <div class="field span-2">
+            <label for="f-notes">Notes</label>
+            <textarea id="f-notes" rows="2" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <div class="editor-actions">
+          <button type="button" id="btn-delete" class="btn-danger hidden">Delete</button>
+          <span id="sync-status" class="field-hint"></span>
+          <div class="spacer"></div>
+          <button type="button" id="btn-cancel" class="btn-secondary">Cancel</button>
+          <button type="submit" id="btn-save-app" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script src="manager.js"></script>
+</body>
+</html>

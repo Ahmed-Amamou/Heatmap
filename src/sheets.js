@@ -156,6 +156,143 @@ function createImporter(config) {
   };
 }
 
+// Map DB fields to sheet column indices from the header row.
+// Column A (index 0) is always job_title regardless of its header text.
+function buildColumnMap(header) {
+  const fieldToCol = { job_title: 0 };
+  let idColIndex = -1;
+  let maxCol = 0;
+
+  for (let c = 1; c < header.length; c++) {
+    const field = HEADER_MAP[normalizeHeader(header[c])];
+    if (field === 'id') {
+      idColIndex = c;
+    } else if (field) {
+      fieldToCol[field] = c;
+    }
+    maxCol = c;
+  }
+
+  if (idColIndex === -1) idColIndex = maxCol + 1;
+  return { fieldToCol, idColIndex, lastCol: Math.max(maxCol, idColIndex) };
+}
+
+// Two-way sync: push local edits/deletes back to the sheet, matched by the ID
+// column the importer seeds. Rows are located by ID, never by position.
+function createSyncer(config) {
+  async function getSheetId(sheets, sheetName) {
+    const meta = await sheets.spreadsheets.get({
+      spreadsheetId: config.spreadsheetId,
+      fields: 'sheets.properties',
+    });
+    const sheet = (meta.data.sheets || []).find(
+      (s) => s.properties.title === sheetName
+    );
+    return sheet ? sheet.properties.sheetId : null;
+  }
+
+  function buildRowArray(appData, fieldToCol, idColIndex, lastCol) {
+    const arr = new Array(lastCol + 1).fill('');
+    for (const [field, col] of Object.entries(fieldToCol)) {
+      arr[col] = appData[field] != null ? String(appData[field]) : '';
+    }
+    arr[idColIndex] = appData.id;
+    return arr;
+  }
+
+  async function readRows(sheets, sheetName) {
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: config.spreadsheetId,
+      range: `${sheetName}!A:Z`,
+    });
+    return resp.data.values || [];
+  }
+
+  function findRowNumber(rows, idColIndex, id) {
+    for (let r = 1; r < rows.length; r++) {
+      const cell = rows[r][idColIndex];
+      if (cell && String(cell).trim() === id) return r + 1; // 1-based
+    }
+    return -1;
+  }
+
+  return {
+    async upsertRow(appData) {
+      if (!config.spreadsheetId) return;
+      const sheets = await getSheetsClient();
+      const sheetName = config.sheetName || 'Sheet1';
+
+      const rows = await readRows(sheets, sheetName);
+      const header = rows[0] || [];
+      const { fieldToCol, idColIndex, lastCol } = buildColumnMap(header);
+
+      // Label a freshly created ID column.
+      if (!header[idColIndex]) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: config.spreadsheetId,
+          range: `${sheetName}!${columnToLetter(idColIndex)}1`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [['ID']] },
+        });
+      }
+
+      const rowArr = buildRowArray(appData, fieldToCol, idColIndex, lastCol);
+      const rowNumber = findRowNumber(rows, idColIndex, appData.id);
+
+      if (rowNumber > 0) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: config.spreadsheetId,
+          range: `${sheetName}!A${rowNumber}:${columnToLetter(lastCol)}${rowNumber}`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [rowArr] },
+        });
+      } else {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: config.spreadsheetId,
+          range: `${sheetName}!A:${columnToLetter(lastCol)}`,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: [rowArr] },
+        });
+      }
+    },
+
+    async deleteRow(id) {
+      if (!config.spreadsheetId) return;
+      const sheets = await getSheetsClient();
+      const sheetName = config.sheetName || 'Sheet1';
+
+      const rows = await readRows(sheets, sheetName);
+      const header = rows[0] || [];
+      const { idColIndex } = buildColumnMap(header);
+
+      const rowNumber = findRowNumber(rows, idColIndex, id);
+      if (rowNumber < 0) return;
+
+      const sheetId = await getSheetId(sheets, sheetName);
+      if (sheetId == null) return;
+
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: config.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId,
+                  dimension: 'ROWS',
+                  startIndex: rowNumber - 1, // 0-based, inclusive
+                  endIndex: rowNumber, // exclusive
+                },
+              },
+            },
+          ],
+        },
+      });
+    },
+  };
+}
+
 function parseDate(raw) {
   const str = String(raw || '').trim();
   if (!str) return null;
@@ -188,4 +325,4 @@ function formatDateKey(date) {
   return `${y}-${m}-${d}`;
 }
 
-module.exports = { createImporter };
+module.exports = { createImporter, createSyncer };
