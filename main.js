@@ -19,12 +19,30 @@ function saveConfig(config) {
   fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
 }
 
-// ── Lazy-load sheets module (needs config) ──
-let fetchApplicationDates;
+// ── Sheets importer + local DB ──
+let importFromSheet;
 function initSheets() {
   const config = loadConfig();
-  const { createFetcher } = require('./src/sheets');
-  fetchApplicationDates = createFetcher(config);
+  const { createImporter } = require('./src/sheets');
+  importFromSheet = createImporter(config);
+}
+
+// Pull latest from the sheet into SQLite, then read counts from the DB.
+// Heatmap stays functional offline by falling back to cached local data.
+async function refreshData() {
+  const db = require('./src/db');
+  let importError = null;
+  try {
+    await importFromSheet();
+  } catch (err) {
+    importError = err.message;
+    console.error('Sheet import failed:', err.message);
+  }
+  const counts = db.getDateCounts();
+  if (importError && Object.keys(counts).length === 0) {
+    return { error: importError };
+  }
+  return counts;
 }
 
 // Auto-launch on Windows startup
@@ -123,12 +141,8 @@ function createWindow() {
   });
 
   refreshInterval = setInterval(async () => {
-    try {
-      const data = await fetchApplicationDates();
-      mainWindow.webContents.send('data-refreshed', data);
-    } catch (err) {
-      console.error('Auto-refresh failed:', err.message);
-    }
+    const data = await refreshData();
+    mainWindow.webContents.send('data-refreshed', data);
   }, 30 * 60 * 1000);
 }
 
@@ -182,12 +196,8 @@ function createTray() {
     {
       label: 'Refresh Data',
       click: async () => {
-        try {
-          const data = await fetchApplicationDates();
-          mainWindow.webContents.send('data-refreshed', data);
-        } catch (err) {
-          console.error('Refresh failed:', err.message);
-        }
+        const data = await refreshData();
+        mainWindow.webContents.send('data-refreshed', data);
       },
     },
     {
@@ -254,12 +264,7 @@ function setupAutoUpdater() {
 
 // ── IPC handlers ──
 ipcMain.handle('fetch-application-data', async () => {
-  try {
-    return await fetchApplicationDates();
-  } catch (err) {
-    console.error('Failed to fetch data:', err.message);
-    return { error: err.message };
-  }
+  return refreshData();
 });
 
 ipcMain.handle('toggle-always-on-top', () => {
@@ -316,8 +321,9 @@ app.on('second-instance', () => {
   }
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   initSheets();
+  await require('./src/db').initDb();
   createWindow();
   createTray();
   setupAutoUpdater();
