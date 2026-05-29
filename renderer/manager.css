@@ -267,6 +267,151 @@ html, body {
   background: rgba(248, 81, 73, 0.22);
 }
 
+/* ── Status pills in list ── */
+.status-pill.pill-rejected {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.status-pill.pill-offer {
+  background: rgba(57, 211, 83, 0.15);
+  color: #39d353;
+}
+
+.pill-extra {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(139, 148, 158, 0.7);
+  margin-left: 4px;
+}
+
+/* ── Multi-select (status) ── */
+.multiselect {
+  position: relative;
+}
+
+.ms-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 32px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ms-control:focus,
+.multiselect.open .ms-control {
+  outline: none;
+  border-color: rgba(88, 166, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+.ms-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.ms-placeholder {
+  font-size: 12px;
+  color: rgba(139, 148, 158, 0.4);
+}
+
+.ms-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  color: #cfe3ff;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 4px 1px 7px;
+  border-radius: 6px;
+}
+
+.ms-chip button {
+  background: transparent;
+  border: none;
+  color: rgba(207, 227, 255, 0.7);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+
+.ms-chip button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ms-caret {
+  color: rgba(139, 148, 158, 0.6);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.multiselect.open .ms-caret {
+  transform: rotate(180deg);
+}
+
+.ms-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(22, 27, 34, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.12s ease;
+}
+
+.ms-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #c9d1d9;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.ms-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ms-option input {
+  accent-color: #58a6ff;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.ms-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.ms-panel::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.25);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
 /* ── Scrollbars ── */
 #list-pane::-webkit-scrollbar,
 #editor::-webkit-scrollbar {
