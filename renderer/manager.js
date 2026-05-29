@@ -21,6 +21,10 @@ const deleteBtn = document.getElementById('btn-delete');
 
 let applications = [];
 let selectedId = null;
+let currentFilter = 'all';
+let currentSort = 'newest';
+
+const STALE_DAYS = 14;
 
 function el(id) {
   return document.getElementById(id);
@@ -28,31 +32,54 @@ function el(id) {
 
 async function loadApplications() {
   applications = await window.heatmapAPI.listApplications();
+  buildFilters();
+  renderStats();
   render();
 }
 
 function render() {
   const query = searchInput.value.trim().toLowerCase();
-  const filtered = query
-    ? applications.filter((a) =>
-        FIELDS.some((f) => String(a[f] || '').toLowerCase().includes(query))
-      )
-    : applications;
+  let list = applications.slice();
+
+  if (currentFilter === 'followup') {
+    list = list.filter(needsFollowup);
+  } else if (currentFilter !== 'all') {
+    list = list.filter((a) => outcomeOf(a) === currentFilter);
+  }
+
+  if (query) {
+    list = list.filter((a) =>
+      FIELDS.some((f) => String(a[f] || '').toLowerCase().includes(query))
+    );
+  }
+
+  list = sortList(list);
 
   countBadge.textContent = `${applications.length}`;
+  updateActiveFilterUI();
+
   tbody.innerHTML = '';
+  const isEmpty = list.length === 0;
+  emptyState.classList.toggle('hidden', !isEmpty);
+  if (isEmpty) {
+    emptyState.innerHTML = applications.length === 0
+      ? 'No applications yet. Click <b>+ New</b> to add one.'
+      : 'No applications match this view.';
+  }
 
-  emptyState.classList.toggle('hidden', applications.length > 0);
-
-  for (const app of filtered) {
+  for (const app of list) {
     const tr = document.createElement('tr');
     if (app.id === selectedId) tr.classList.add('selected');
     tr.dataset.id = app.id;
 
+    const followup = needsFollowup(app)
+      ? '<span class="followup-badge">Follow up</span>'
+      : '';
+
     tr.innerHTML = `
       <td class="title-cell">${escapeHtml(app.job_title) || '—'}</td>
       <td>${escapeHtml(app.company) || '—'}</td>
-      <td>${escapeHtml(app.applying_date) || '—'}</td>
+      <td>${escapeHtml(app.applying_date) || '—'}${followup}</td>
       <td>${renderStatusPills(app.status)}</td>
     `;
     tr.addEventListener('click', () => openEditor(app));
@@ -89,6 +116,188 @@ function renderStatusPills(status) {
   return `<span class="${cls}">${escapeHtml(last)}</span>${extra}`;
 }
 
+// ── Outcome derivation ──
+// Stage groups (lowercased) used to classify where an application got to.
+const SCREEN_STAGES = ['hr call', 'hr screen'];
+const INTERVIEW_STAGES = [
+  'online logic test', 'coding test', 'tech interview',
+  'manager interview', 'final interview',
+];
+
+function statusParts(app) {
+  return splitStatus(app.status).map((s) => s.toLowerCase());
+}
+
+function hasAny(parts, list) {
+  return parts.some((p) => list.some((s) => p.includes(s)));
+}
+
+const hasOffer = (parts) => parts.some((p) => p.includes('offer'));
+const hasReject = (parts) => parts.some((p) => p.includes('reject'));
+const reachedInterview = (parts) => hasOffer(parts) || hasAny(parts, INTERVIEW_STAGES);
+const reachedScreen = (parts) => reachedInterview(parts) || hasAny(parts, SCREEN_STAGES);
+const responded = (parts) => reachedScreen(parts) || hasReject(parts);
+
+// Final outcome bucket, in priority order.
+function outcomeOf(app) {
+  const parts = statusParts(app);
+  if (hasOffer(parts)) return 'offer';
+  if (hasReject(parts)) return 'rejected';
+  if (reachedScreen(parts)) return 'interviewing';
+  return 'active';
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+// Stale = still just "applied", no response, and old enough to chase.
+function needsFollowup(app) {
+  if (outcomeOf(app) !== 'active') return false;
+  const days = daysSince(app.applying_date);
+  return days != null && days >= STALE_DAYS;
+}
+
+// ── Insights ──
+function computeStats() {
+  const total = applications.length;
+  let active = 0, interviewing = 0, offers = 0, respondedCount = 0;
+  let screenReach = 0, interviewReach = 0, offerReach = 0;
+
+  for (const a of applications) {
+    const parts = statusParts(a);
+    switch (outcomeOf(a)) {
+      case 'active': active++; break;
+      case 'interviewing': interviewing++; break;
+      case 'offer': offers++; break;
+    }
+    if (responded(parts)) respondedCount++;
+    if (reachedScreen(parts)) screenReach++;
+    if (reachedInterview(parts)) interviewReach++;
+    if (hasOffer(parts)) offerReach++;
+  }
+
+  const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+  return {
+    total, active, interviewing, offers,
+    responseRate: pct(respondedCount),
+    interviewRate: pct(interviewReach),
+    funnel: [
+      ['Applied', total],
+      ['Screen', screenReach],
+      ['Interview', interviewReach],
+      ['Offer', offerReach],
+    ],
+  };
+}
+
+function metricHtml(value, label, cls = '') {
+  return `<div class="metric"><div class="metric-value ${cls}">${value}</div><div class="metric-label">${label}</div></div>`;
+}
+
+function renderStats() {
+  const s = computeStats();
+  el('metrics').innerHTML = [
+    metricHtml(s.total, 'Total'),
+    metricHtml(s.active, 'Active'),
+    metricHtml(s.interviewing, 'Interviewing', 'accent-blue'),
+    metricHtml(s.offers, 'Offers', 'accent-green'),
+    metricHtml(`${s.responseRate}%`, 'Response'),
+    metricHtml(`${s.interviewRate}%`, 'Interview'),
+  ].join('');
+
+  const max = s.funnel[0][1] || 1;
+  el('funnel').innerHTML = s.funnel
+    .map(([name, count]) => {
+      const w = `${Math.round((count / max) * 100)}%`;
+      const share = s.total ? Math.round((count / s.total) * 100) : 0;
+      return `
+        <div class="funnel-row">
+          <span class="funnel-name">${name}</span>
+          <div class="funnel-track"><div class="funnel-fill" style="width:0" data-w="${w}"></div></div>
+          <span class="funnel-count">${count} · ${share}%</span>
+        </div>`;
+    })
+    .join('');
+
+  applyFunnelWidths();
+}
+
+function applyFunnelWidths() {
+  if (el('stats-panel').classList.contains('collapsed')) return;
+  requestAnimationFrame(() => {
+    el('funnel').querySelectorAll('.funnel-fill').forEach((f) => {
+      f.style.width = f.dataset.w;
+    });
+  });
+}
+
+// ── Filters + sort ──
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'interviewing', label: 'Interviewing' },
+  { key: 'offer', label: 'Offers' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'followup', label: 'Follow-up' },
+];
+
+function buildFilters() {
+  const counts = { all: applications.length, active: 0, interviewing: 0, offer: 0, rejected: 0, followup: 0 };
+  for (const a of applications) {
+    counts[outcomeOf(a)]++;
+    if (needsFollowup(a)) counts.followup++;
+  }
+
+  el('filters').innerHTML = FILTERS.map((f) => `
+    <button class="filter-chip${f.key === currentFilter ? ' active' : ''}" data-filter="${f.key}">
+      ${f.label}<span class="chip-count">${counts[f.key]}</span>
+    </button>`).join('');
+
+  el('filters').querySelectorAll('.filter-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      currentFilter = btn.dataset.filter;
+      render();
+    });
+  });
+}
+
+function updateActiveFilterUI() {
+  el('filters').querySelectorAll('.filter-chip').forEach((b) => {
+    b.classList.toggle('active', b.dataset.filter === currentFilter);
+  });
+}
+
+function outcomeRank(app) {
+  return { offer: 0, interviewing: 1, active: 2, rejected: 3 }[outcomeOf(app)];
+}
+
+function sortList(list) {
+  const cmp = {
+    newest: (a, b) => (b.applying_date || '').localeCompare(a.applying_date || ''),
+    oldest: (a, b) => (a.applying_date || '').localeCompare(b.applying_date || ''),
+    company: (a, b) => (a.company || '').localeCompare(b.company || ''),
+    status: (a, b) => outcomeRank(a) - outcomeRank(b),
+  }[currentSort] || (() => 0);
+  return list.sort(cmp);
+}
+
+// ── Toast ──
+let toastTimer;
+function toast(message, isError = false) {
+  const t = el('toast');
+  t.textContent = message;
+  t.classList.toggle('error', isError);
+  t.classList.remove('hidden');
+  void t.offsetWidth; // reflow so the transition replays
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
 function openEditor(app) {
   selectedId = app ? app.id : null;
   el('f-id').value = app ? app.id : '';
@@ -121,6 +330,39 @@ document.getElementById('btn-close-manager').addEventListener('click', () => {
   window.heatmapAPI.closeManager();
 });
 
+document.getElementById('btn-stats').addEventListener('click', () => {
+  const collapsed = el('stats-panel').classList.toggle('collapsed');
+  el('btn-stats').classList.toggle('active', !collapsed);
+  if (!collapsed) applyFunnelWidths();
+});
+
+document.getElementById('sort').addEventListener('change', (e) => {
+  currentSort = e.target.value;
+  render();
+});
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', (e) => {
+  if (!confirmOverlay.classList.contains('hidden')) return; // dialog has its own keys
+
+  if (e.key === 'Escape') {
+    if (!statusPanel.classList.contains('hidden')) closeStatusPanel();
+    else if (!editor.classList.contains('hidden')) closeEditor();
+    else window.heatmapAPI.closeManager();
+    return;
+  }
+
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'n') {
+    e.preventDefault();
+    openEditor(null);
+  } else if (mod && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    searchInput.focus();
+    searchInput.select();
+  }
+});
+
 // Themed confirmation dialog, returns a promise resolving true/false.
 const confirmOverlay = el('confirm-overlay');
 function confirmDialog() {
@@ -132,6 +374,7 @@ function confirmDialog() {
       el('confirm-ok').removeEventListener('click', onOk);
       el('confirm-cancel').removeEventListener('click', onCancel);
       confirmOverlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey, true);
       resolve(result);
     };
     const onOk = () => cleanup(true);
@@ -139,10 +382,16 @@ function confirmDialog() {
     const onBackdrop = (e) => {
       if (e.target === confirmOverlay) cleanup(false);
     };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
+      else if (e.key === 'Enter') { e.preventDefault(); cleanup(true); }
+    };
 
     el('confirm-ok').addEventListener('click', onOk);
     el('confirm-cancel').addEventListener('click', onCancel);
     confirmOverlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey, true);
+    el('confirm-ok').focus();
   });
 }
 
@@ -158,15 +407,10 @@ editor.addEventListener('submit', async (e) => {
   selectedId = id;
   await loadApplications();
 
-  if (syncError) {
-    syncStatus.textContent = `Saved locally · sheet sync failed`;
-    syncStatus.className = 'field-hint error';
-  } else {
-    syncStatus.textContent = 'Saved';
-    syncStatus.className = 'field-hint success';
-  }
+  syncStatus.textContent = '';
   el('f-id').value = id;
   deleteBtn.classList.remove('hidden');
+  toast(syncError ? 'Saved locally · sheet sync failed' : 'Application saved', !!syncError);
 });
 
 deleteBtn.addEventListener('click', async () => {
@@ -177,10 +421,7 @@ deleteBtn.addEventListener('click', async () => {
   const { syncError } = await window.heatmapAPI.deleteApplication(id);
   await loadApplications();
   closeEditor();
-
-  if (syncError) {
-    console.error('Sheet delete sync failed:', syncError);
-  }
+  toast(syncError ? 'Deleted locally · sheet sync failed' : 'Application deleted', !!syncError);
 });
 
 // ── Status multi-select ──

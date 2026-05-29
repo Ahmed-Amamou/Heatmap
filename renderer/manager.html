@@ -17,12 +17,31 @@
       </div>
       <div class="header-actions">
         <input type="search" id="search" placeholder="Search…" spellcheck="false">
+        <button id="btn-stats" class="btn-secondary" title="Toggle insights">Insights</button>
         <button id="btn-new" class="btn-primary">+ New</button>
         <button id="btn-close-manager" title="Close">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
             <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
           </svg>
         </button>
+      </div>
+    </div>
+
+    <div id="stats-panel" class="collapsed">
+      <div id="metrics"></div>
+      <div id="funnel"></div>
+    </div>
+
+    <div id="toolbar">
+      <div id="filters"></div>
+      <div class="toolbar-right">
+        <span class="sort-label">Sort</span>
+        <select id="sort">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="company">Company</option>
+          <option value="status">Status</option>
+        </select>
       </div>
     </div>
 
@@ -106,6 +125,8 @@
       </form>
     </div>
   </div>
+
+  <div id="toast" class="hidden"></div>
 
   <div id="confirm-overlay" class="hidden">
     <div id="confirm-box">
