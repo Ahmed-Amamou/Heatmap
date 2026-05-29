@@ -4,6 +4,7 @@ const tooltipEl = document.getElementById('tooltip');
 const statsEl = document.getElementById('stats');
 const loadingEl = document.getElementById('loading');
 const errorEl = document.getElementById('error');
+const onboardingEl = document.getElementById('onboarding');
 
 const WEEKS_TO_SHOW = 18;
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -144,6 +145,7 @@ async function loadData() {
   refreshBtn.classList.add('spinning');
   loadingEl.classList.remove('hidden');
   errorEl.classList.add('hidden');
+  onboardingEl.classList.add('hidden');
 
   try {
     const data = await window.heatmapAPI.fetchData();
@@ -154,6 +156,7 @@ async function loadData() {
 
     loadingEl.classList.add('hidden');
     renderHeatmap(data);
+    onboardingEl.classList.toggle('hidden', Object.keys(data).length > 0);
   } catch (err) {
     loadingEl.classList.add('hidden');
     errorEl.textContent = err.message;
@@ -183,6 +186,14 @@ document.getElementById('btn-settings').addEventListener('click', () => {
   window.heatmapAPI.openSettings();
 });
 
+document.getElementById('onboard-new').addEventListener('click', () => {
+  window.heatmapAPI.openManager();
+});
+
+document.getElementById('onboard-settings').addEventListener('click', () => {
+  window.heatmapAPI.openSettings();
+});
+
 document.getElementById('btn-pin').addEventListener('click', async () => {
   const pinned = await window.heatmapAPI.toggleAlwaysOnTop();
   document.getElementById('btn-pin').classList.toggle('active', pinned);
@@ -192,6 +203,7 @@ document.getElementById('btn-pin').addEventListener('click', async () => {
 window.heatmapAPI.onDataRefreshed((data) => {
   if (!data.error) {
     renderHeatmap(data);
+    onboardingEl.classList.toggle('hidden', Object.keys(data).length > 0);
   }
 });
 

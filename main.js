@@ -3,6 +3,28 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
+// ── Throwaway test profiles (dev only) ──
+// Simulate a fresh install without touching your real data. This redirects ALL
+// user data (config.json, heatmap.db, credentials.json, window position) to an
+// isolated temp folder, so the app behaves like a brand-new install.
+//   npm run start:fresh          brand-new user — temp profile wiped each launch
+//   electron . --profile=demo    named temp profile that PERSISTS between runs
+//                                 (stage a scenario once, e.g. a configured but
+//                                  unreachable sheet, then relaunch into it)
+const useFresh = process.argv.includes('--fresh');
+const profileArg = process.argv.find((a) => a.startsWith('--profile='));
+const isTestProfile = useFresh || !!profileArg;
+
+if (isTestProfile) {
+  const os = require('os');
+  const name = profileArg ? profileArg.split('=')[1] : 'fresh';
+  const profileDir = path.join(os.tmpdir(), `heatmap-test-${name}`);
+  if (useFresh) fs.rmSync(profileDir, { recursive: true, force: true });
+  fs.mkdirSync(profileDir, { recursive: true });
+  app.setPath('userData', profileDir);
+  console.log(`[test profile "${name}"] userData → ${profileDir}`);
+}
+
 // ── Config persistence (replaces .env) ──
 const configFile = path.join(app.getPath('userData'), 'config.json');
 
@@ -33,30 +55,43 @@ function initSheets() {
 // Heatmap stays functional offline by falling back to cached local data.
 async function refreshData() {
   const db = require('./src/db');
+
+  // The Google Sheet is optional. Only attempt an import when one is actually
+  // configured, so a sheet-less user never sees a connection "error".
   let importError = null;
-  try {
-    await importFromSheet();
-  } catch (err) {
-    importError = err.message;
-    console.error('Sheet import failed:', err.message);
+  if (loadConfig().spreadsheetId) {
+    try {
+      await importFromSheet();
+    } catch (err) {
+      importError = err.message;
+      console.error('Sheet import failed:', err.message);
+    }
   }
+
   const counts = db.getDateCounts();
+  // Surface an error only when a configured sheet failed AND we have no local
+  // data to fall back on. No sheet + no data is a normal empty state, not an error.
   if (importError && Object.keys(counts).length === 0) {
     return { error: importError };
   }
   return counts;
 }
 
-// Auto-launch on Windows startup
-app.setLoginItemSettings({
-  openAtLogin: true,
-  path: app.getPath('exe'),
-});
+// Auto-launch on Windows startup (skipped for throwaway test profiles)
+if (!isTestProfile) {
+  app.setLoginItemSettings({
+    openAtLogin: true,
+    path: app.getPath('exe'),
+  });
+}
 
-// Single instance lock
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
+// Single instance lock. Test profiles bypass it so a throwaway instance can run
+// alongside your real (already-running) Heatmap instead of just focusing it.
+if (!isTestProfile) {
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+  }
 }
 
 let mainWindow;

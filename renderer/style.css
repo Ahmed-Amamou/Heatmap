@@ -329,6 +329,33 @@ body {
   z-index: 2;
 }
 
+#onboarding {
+  text-align: center;
+  padding: 10px 16px;
+  color: rgba(139, 148, 158, 0.8);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 8px;
+  font-weight: 500;
+  position: relative;
+  z-index: 2;
+  -webkit-app-region: no-drag;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #58a6ff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
 /* ── Refresh animation ── */
 #btn-refresh.spinning svg,
 #btn-refresh.spinning {
