@@ -6,14 +6,23 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: rgba(13, 17, 23, 0.92);
+  background: rgba(13, 17, 23, 0.99);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 16px;
   color: #c9d1d9;
   overflow: hidden;
-  animation: fadeIn 0.3s ease;
+  transform-origin: var(--zoom-origin, 50% 50%);
+  will-change: transform, opacity;
+  animation: zoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* macOS-style zoom-open from the clicked icon (see --zoom-origin). The transform
+   layer is cleared in manager.js on animationend so the drag region works. */
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 /* ── Header ── */

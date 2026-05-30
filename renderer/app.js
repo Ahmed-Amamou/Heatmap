@@ -178,16 +178,23 @@ document.getElementById('btn-minimize').addEventListener('click', () => {
 
 document.getElementById('btn-refresh').addEventListener('click', loadData);
 
-document.getElementById('btn-manage').addEventListener('click', () => {
-  window.heatmapAPI.openManager();
+// Center of the clicked control, in gadget-window coordinates. The manager
+// window scales open from this point for a macOS-style zoom.
+function clickOrigin(e) {
+  const r = e.currentTarget.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+}
+
+document.getElementById('btn-manage').addEventListener('click', (e) => {
+  window.heatmapAPI.openManager(clickOrigin(e));
 });
 
 document.getElementById('btn-settings').addEventListener('click', () => {
   window.heatmapAPI.openSettings();
 });
 
-document.getElementById('onboard-new').addEventListener('click', () => {
-  window.heatmapAPI.openManager();
+document.getElementById('onboard-new').addEventListener('click', (e) => {
+  window.heatmapAPI.openManager(clickOrigin(e));
 });
 
 document.getElementById('onboard-settings').addEventListener('click', () => {

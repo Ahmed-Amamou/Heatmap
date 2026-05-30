@@ -7,6 +7,17 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="settings.css">
   <link rel="stylesheet" href="manager.css">
+  <script>
+    // Anchor the open animation to the icon the user clicked (passed as ox/oy
+    // percentages). Set before body renders so the first frame uses it.
+    (function () {
+      const p = new URLSearchParams(location.search);
+      const ox = p.get('ox'), oy = p.get('oy');
+      if (ox !== null && oy !== null) {
+        document.documentElement.style.setProperty('--zoom-origin', `${ox}% ${oy}%`);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="manager">

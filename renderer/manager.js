@@ -1,3 +1,35 @@
+// The open animation promotes #manager to its own transform/compositor layer,
+// which suppresses the title-bar drag region (-webkit-app-region) until a
+// recomposite. Clear the layer as soon as the zoom finishes so the window is
+// draggable right away.
+(function clearZoomLayerAfterOpen() {
+  const root = document.getElementById('manager');
+  if (!root) return;
+  root.addEventListener('animationend', function onEnd(e) {
+    if (e.target !== root) return;
+    root.removeEventListener('animationend', onEnd);
+
+    // Drop the transform/compositor layer so the header is no longer inside a
+    // transformed ancestor.
+    root.style.animation = 'none';
+    root.style.willChange = 'auto';
+    root.style.transform = 'none';
+    root.style.transformOrigin = '';
+
+    // Electron cached "no draggable region" while the panel was transformed and
+    // only recomputes on a layout change. Briefly toggle the header's app-region
+    // to force a fresh DraggableRegionsChanged so the window is movable again.
+    const header = document.getElementById('manager-header');
+    if (header) {
+      header.style.webkitAppRegion = 'no-drag';
+      void header.offsetWidth; // flush layout
+      requestAnimationFrame(() => {
+        header.style.webkitAppRegion = 'drag';
+      });
+    }
+  });
+})();
+
 const FIELDS = [
   'job_title', 'company', 'location', 'applying_date', 'job_type',
   'status', 'resume_version', 'contact', 'description', 'notes',

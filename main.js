@@ -219,7 +219,7 @@ function createSettingsWindow() {
   });
 }
 
-function createManagerWindow() {
+function createManagerWindow(origin) {
   if (managerWindow) {
     managerWindow.show();
     managerWindow.focus();
@@ -242,7 +242,18 @@ function createManagerWindow() {
     },
   });
 
-  managerWindow.loadFile(path.join(__dirname, 'renderer', 'manager.html'));
+  // Translate the gadget-relative click point into a percentage position inside
+  // the manager window, used as the CSS transform-origin so the window scales
+  // open from the icon the user clicked.
+  const query = {};
+  if (origin && mainWindow) {
+    const gb = mainWindow.getContentBounds();
+    const mb = managerWindow.getContentBounds();
+    query.ox = (((gb.x + origin.x - mb.x) / mb.width) * 100).toFixed(2);
+    query.oy = (((gb.y + origin.y - mb.y) / mb.height) * 100).toFixed(2);
+  }
+
+  managerWindow.loadFile(path.join(__dirname, 'renderer', 'manager.html'), { query });
 
   managerWindow.once('ready-to-show', () => {
     managerWindow.show();
@@ -418,8 +429,8 @@ function notifyDataChanged() {
   if (mainWindow) mainWindow.webContents.send('data-refreshed', counts);
 }
 
-ipcMain.on('open-manager', () => {
-  createManagerWindow();
+ipcMain.on('open-manager', (_event, origin) => {
+  createManagerWindow(origin);
 });
 
 ipcMain.on('close-manager', () => {
