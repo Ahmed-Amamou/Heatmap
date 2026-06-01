@@ -20,8 +20,18 @@ const HEADER_MAP = {
   id: 'id',
 };
 
+const MONTHS_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function normalizeHeader(text) {
   return String(text || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+// Write dates to the sheet as e.g. "1-Jun-2026" to match the sheet's format,
+// rather than the ISO form used internally. Non-ISO values pass through.
+function formatSheetDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return iso != null ? String(iso) : '';
+  return `${parseInt(m[3], 10)}-${MONTHS_ABBR[parseInt(m[2], 10) - 1]}-${m[1]}`;
 }
 
 function columnToLetter(index) {
@@ -194,7 +204,11 @@ function createSyncer(config) {
   function buildRowArray(appData, fieldToCol, idColIndex, lastCol) {
     const arr = new Array(lastCol + 1).fill('');
     for (const [field, col] of Object.entries(fieldToCol)) {
-      arr[col] = appData[field] != null ? String(appData[field]) : '';
+      if (field === 'applying_date') {
+        arr[col] = formatSheetDate(appData[field]);
+      } else {
+        arr[col] = appData[field] != null ? String(appData[field]) : '';
+      }
     }
     arr[idColIndex] = appData.id;
     return arr;
@@ -312,6 +326,16 @@ function parseDate(raw) {
     const parts = str.split('-');
     const d = new Date(parts[2], parts[1] - 1, parts[0]);
     return isNaN(d.getTime()) ? null : d;
+  }
+
+  // "1-Jun-2026" (the sheet's display format).
+  const mon = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(str);
+  if (mon) {
+    const mi = MONTHS_ABBR.findIndex((m) => m.toLowerCase() === mon[2].toLowerCase());
+    if (mi >= 0) {
+      const d = new Date(Number(mon[3]), mi, Number(mon[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
   }
 
   const d = new Date(str);

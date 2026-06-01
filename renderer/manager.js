@@ -112,7 +112,7 @@ function render() {
     tr.innerHTML = `
       <td class="title-cell">${escapeHtml(app.job_title) || '—'}</td>
       <td>${escapeHtml(app.company) || '—'}</td>
-      <td>${escapeHtml(app.applying_date) || '—'}${followup}</td>
+      <td>${escapeHtml(formatDisplayDate(app.applying_date)) || '—'}${followup}</td>
       <td>${renderStatusPills(app)}</td>
     `;
     tr.addEventListener('click', () => openEditor(app));
@@ -126,6 +126,16 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+const MONTHS_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Dates are stored as ISO (YYYY-MM-DD) but shown as e.g. "1-Jun-2026". Anything
+// that isn't a clean ISO date is left untouched.
+function formatDisplayDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return iso || '';
+  return `${parseInt(m[3], 10)}-${MONTHS_ABBR[parseInt(m[2], 10) - 1]}-${m[1]}`;
 }
 
 function splitStatus(status) {
