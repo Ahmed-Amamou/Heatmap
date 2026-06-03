@@ -95,8 +95,17 @@
             <input type="date" id="f-applying_date">
           </div>
           <div class="field">
-            <label for="f-job_type">Job Type</label>
-            <input type="text" id="f-job_type" spellcheck="false">
+            <label>Job Type</label>
+            <div class="multiselect" id="jobtype-ms">
+              <div class="ms-control" id="jobtype-control" tabindex="0">
+                <span id="jobtype-value" class="ms-placeholder">Select…</span>
+                <svg class="ms-caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </div>
+              <div class="ms-panel hidden" id="jobtype-panel"></div>
+            </div>
+            <input type="hidden" id="f-job_type">
           </div>
           <div class="field">
             <label>Status</label>

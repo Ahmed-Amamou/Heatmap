@@ -368,6 +368,8 @@ function openEditor(app) {
   }
   setStatus(app && app.status != null ? app.status : '');
   closeStatusPanel();
+  setJobType(app && app.job_type != null ? app.job_type : '');
+  closeJobTypePanel();
 
   deleteBtn.classList.toggle('hidden', !app);
   syncStatus.textContent = '';
@@ -459,6 +461,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!sortPanel.classList.contains('hidden')) closeSortPanel();
     else if (!statusPanel.classList.contains('hidden')) closeStatusPanel();
+    else if (!jobtypePanel.classList.contains('hidden')) closeJobTypePanel();
     else if (!editor.classList.contains('hidden')) closeEditor();
     else window.heatmapAPI.closeManager();
     return;
@@ -507,22 +510,34 @@ function confirmDialog() {
   });
 }
 
+let isSaving = false;
+const saveBtn = el('btn-save-app');
+
 editor.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (isSaving) return;
+  isSaving = true;
+  saveBtn.disabled = true;
+
   const appData = { id: el('f-id').value || undefined };
   for (const f of FIELDS) appData[f] = el(`f-${f}`).value.trim() || null;
 
   syncStatus.textContent = 'Saving…';
   syncStatus.className = 'field-hint';
 
-  const { id, syncError } = await window.heatmapAPI.saveApplication(appData);
-  selectedId = id;
-  await loadApplications();
+  try {
+    const { id, syncError } = await window.heatmapAPI.saveApplication(appData);
+    selectedId = id;
+    await loadApplications();
 
-  syncStatus.textContent = '';
-  el('f-id').value = id;
-  deleteBtn.classList.remove('hidden');
-  toast(syncError ? 'Saved locally · sheet sync failed' : 'Application saved', !!syncError);
+    syncStatus.textContent = '';
+    el('f-id').value = id;
+    deleteBtn.classList.remove('hidden');
+    toast(syncError ? 'Saved locally · sheet sync failed' : 'Application saved', !!syncError);
+  } finally {
+    isSaving = false;
+    saveBtn.disabled = false;
+  }
 });
 
 deleteBtn.addEventListener('click', async () => {
@@ -650,5 +665,80 @@ document.addEventListener('click', (e) => {
 
 buildStatusPanel();
 updateStatusUI();
+
+// ── Job type single-select ──
+const JOB_TYPE_OPTIONS = ['Alternance', 'CDI', 'CDI (presta)', 'CDD', 'CIVP', 'Freelance'];
+
+const jobtypeMs = el('jobtype-ms');
+const jobtypeControl = el('jobtype-control');
+const jobtypePanel = el('jobtype-panel');
+const jobtypeValueEl = el('jobtype-value');
+const jobtypeHidden = el('f-job_type');
+
+let jobtypeExtra = ''; // a stored value not in the canonical list, preserved
+
+function allJobTypeOptions() {
+  return jobtypeExtra ? [...JOB_TYPE_OPTIONS, jobtypeExtra] : JOB_TYPE_OPTIONS;
+}
+
+function setJobType(value) {
+  const v = String(value || '').trim();
+  const match = JOB_TYPE_OPTIONS.find((o) => o.toLowerCase() === v.toLowerCase());
+  jobtypeExtra = v && !match ? v : '';
+  jobtypeHidden.value = match || v;
+  buildJobTypePanel();
+  updateJobTypeUI();
+}
+
+function updateJobTypeUI() {
+  const v = jobtypeHidden.value;
+  jobtypeValueEl.textContent = v || 'Select…';
+  jobtypeValueEl.classList.toggle('ms-placeholder', !v);
+}
+
+function buildJobTypePanel() {
+  jobtypePanel.innerHTML = '';
+  const addRow = (label, value) => {
+    const row = document.createElement('div');
+    row.className = 'dd-option' + (jobtypeHidden.value === value ? ' selected' : '');
+    row.textContent = label;
+    row.addEventListener('click', () => {
+      jobtypeHidden.value = value;
+      buildJobTypePanel();
+      updateJobTypeUI();
+      closeJobTypePanel();
+    });
+    jobtypePanel.appendChild(row);
+  };
+  addRow('—', ''); // clear
+  for (const opt of allJobTypeOptions()) addRow(opt, opt);
+}
+
+function closeJobTypePanel() {
+  jobtypePanel.classList.add('hidden');
+  jobtypeMs.classList.remove('open');
+}
+
+jobtypeControl.addEventListener('click', () => {
+  const isOpen = !jobtypePanel.classList.contains('hidden');
+  jobtypePanel.classList.toggle('hidden', isOpen);
+  jobtypeMs.classList.toggle('open', !isOpen);
+});
+
+jobtypeControl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    jobtypeControl.click();
+  } else if (e.key === 'Escape') {
+    closeJobTypePanel();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!jobtypeMs.contains(e.target)) closeJobTypePanel();
+});
+
+buildJobTypePanel();
+updateJobTypeUI();
 
 loadApplications();

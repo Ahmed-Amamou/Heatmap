@@ -155,3 +155,9 @@
 .btn-primary:active {
   transform: scale(0.98);
 }
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}

@@ -606,6 +606,16 @@ html, body {
   color: rgba(139, 148, 158, 0.4);
 }
 
+#jobtype-value {
+  flex: 1;
+  font-size: 12px;
+  color: #f0f6fc;
+}
+
+#jobtype-value.ms-placeholder {
+  color: rgba(139, 148, 158, 0.4);
+}
+
 .ms-chip {
   display: inline-flex;
   align-items: center;
