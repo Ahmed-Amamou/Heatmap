@@ -831,6 +831,7 @@ function attachAutocomplete(input, field) {
 }
 
 attachAutocomplete(el('f-company'), 'company');
+attachAutocomplete(el('f-location'), 'location');
 attachAutocomplete(el('f-resume_version'), 'resume_version');
 
 loadApplications();
