@@ -741,4 +741,96 @@ document.addEventListener('click', (e) => {
 buildJobTypePanel();
 updateJobTypeUI();
 
+// ── Autocomplete (company / resume version) ──
+// Suggests previously entered values for a free-text input, ranked by how
+// often each was used. Reuses the themed .dd-panel/.dd-option styling.
+function distinctValues(field) {
+  const counts = new Map();
+  for (const a of applications) {
+    const v = String(a[field] == null ? '' : a[field]).trim();
+    if (v) counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([v]) => v);
+}
+
+function attachAutocomplete(input, field) {
+  input.parentElement.classList.add('has-autocomplete');
+  input.setAttribute('autocomplete', 'off');
+
+  const panel = document.createElement('div');
+  panel.className = 'ac-panel hidden';
+  input.insertAdjacentElement('afterend', panel);
+
+  let items = [];
+  let active = -1;
+
+  const isOpen = () => !panel.classList.contains('hidden');
+  function close() {
+    panel.classList.add('hidden');
+    active = -1;
+  }
+
+  function highlight(i) {
+    active = i;
+    [...panel.children].forEach((row, idx) =>
+      row.classList.toggle('active', idx === active)
+    );
+  }
+
+  function open() {
+    const query = input.value.trim().toLowerCase();
+    items = distinctValues(field).filter((v) => {
+      const lv = v.toLowerCase();
+      return lv !== query && (!query || lv.includes(query));
+    }).slice(0, 6);
+
+    if (items.length === 0) { close(); return; }
+
+    panel.innerHTML = '';
+    items.forEach((v, idx) => {
+      const row = document.createElement('div');
+      row.className = 'dd-option';
+      row.textContent = v;
+      row.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // keep focus, beat the blur
+        input.value = v;
+        close();
+      });
+      row.addEventListener('mouseenter', () => highlight(idx));
+      panel.appendChild(row);
+    });
+    active = -1;
+    panel.classList.remove('hidden');
+  }
+
+  input.addEventListener('input', open);
+  input.addEventListener('focus', open);
+  input.addEventListener('blur', () => setTimeout(close, 120));
+
+  input.addEventListener('keydown', (e) => {
+    if (!isOpen()) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlight((active + 1) % items.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlight((active - 1 + items.length) % items.length);
+    } else if (e.key === 'Enter') {
+      if (active >= 0) {
+        e.preventDefault();
+        input.value = items[active];
+        close();
+      }
+    } else if (e.key === 'Escape') {
+      e.stopPropagation(); // don't let the global handler close the editor
+      close();
+    }
+  });
+}
+
+attachAutocomplete(el('f-company'), 'company');
+attachAutocomplete(el('f-resume_version'), 'resume_version');
+
 loadApplications();

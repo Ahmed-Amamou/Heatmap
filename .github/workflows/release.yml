@@ -1,5 +1,5 @@
 name: Build & Release
-run-name: Release ${{ github.ref_name }} by @${{ github.actor }}
+run-name: Release ${{ github.ref_name }} — ${{ github.event.head_commit.message }}
 
 on:
   push:
