@@ -458,6 +458,27 @@ html, body {
   overflow-y: auto;
 }
 
+#editor-resizer {
+  width: 5px;
+  margin-right: -5px; /* overlay the editor's left border, no layout shift */
+  flex-shrink: 0;
+  z-index: 10;
+  cursor: ew-resize;
+  background: transparent;
+  touch-action: none;
+  transition: background 0.15s ease;
+}
+
+#editor-resizer:hover,
+body.resizing #editor-resizer {
+  background: rgba(88, 166, 255, 0.35);
+}
+
+body.resizing {
+  cursor: ew-resize;
+  user-select: none;
+}
+
 .ed-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

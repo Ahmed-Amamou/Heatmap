@@ -423,6 +423,22 @@ ipcMain.handle('delete-application', async (_event, id) => {
   return { syncError };
 });
 
+// Write an export file wherever the user picks. Content is built in the
+// renderer; main only owns the save dialog and disk write.
+ipcMain.handle('export-applications', async (_event, { defaultName, content }) => {
+  const result = await dialog.showSaveDialog(managerWindow || mainWindow, {
+    title: 'Export applications',
+    defaultPath: path.join(app.getPath('documents'), defaultName),
+    filters: [
+      { name: 'Markdown', extensions: ['md'] },
+      { name: 'Text', extensions: ['txt'] },
+    ],
+  });
+  if (result.canceled || !result.filePath) return { canceled: true };
+  fs.writeFileSync(result.filePath, content, 'utf8');
+  return { canceled: false, filePath: result.filePath };
+});
+
 // Refresh the heatmap counts in any open windows after a local mutation.
 function notifyDataChanged() {
   const counts = require('./src/db').getDateCounts();

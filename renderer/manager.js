@@ -70,7 +70,8 @@ async function loadApplications() {
   render();
 }
 
-function render() {
+// The list as currently displayed: filter + search + sort applied.
+function visibleList() {
   const query = searchInput.value.trim().toLowerCase();
   let list = applications.slice();
 
@@ -86,7 +87,11 @@ function render() {
     );
   }
 
-  list = sortList(list);
+  return sortList(list);
+}
+
+function render() {
+  const list = visibleList();
 
   countBadge.textContent = `${applications.length}`;
   updateActiveFilterUI();
@@ -375,6 +380,7 @@ function openEditor(app) {
   syncStatus.textContent = '';
   syncStatus.className = 'field-hint';
   editor.classList.remove('hidden');
+  el('editor-resizer').classList.remove('hidden');
   render();
   el('f-job_title').focus();
 }
@@ -382,6 +388,7 @@ function openEditor(app) {
 function closeEditor() {
   selectedId = null;
   editor.classList.add('hidden');
+  el('editor-resizer').classList.add('hidden');
   render();
 }
 
@@ -833,5 +840,95 @@ function attachAutocomplete(input, field) {
 attachAutocomplete(el('f-company'), 'company');
 attachAutocomplete(el('f-location'), 'location');
 attachAutocomplete(el('f-resume_version'), 'resume_version');
+
+// ── Export (Markdown, LLM-friendly) ──
+// Markdown keeps the structure readable for both humans and LLMs, so the file
+// can be pasted straight into a chat for interview prep or recruiter emails.
+function buildExportMarkdown(list) {
+  const out = [];
+  out.push('# Job Applications');
+  out.push('');
+  out.push(`Exported ${formatDisplayDate(new Date().toISOString().slice(0, 10))} · ${list.length} application${list.length === 1 ? '' : 's'}.`);
+
+  for (const a of list) {
+    const title = [a.job_title, a.company].filter(Boolean).join(' — ') || 'Untitled application';
+    out.push('');
+    out.push(`## ${title}`);
+    out.push('');
+
+    const facts = [
+      ['Location', a.location],
+      ['Applied', formatDisplayDate(a.applying_date)],
+      ['Job Type', a.job_type],
+      ['Status', a.status],
+      ['Resume Version', a.resume_version],
+      ['Contact', a.contact],
+    ];
+    for (const [label, value] of facts) {
+      if (value) out.push(`- **${label}:** ${value}`);
+    }
+    if (a.description) {
+      out.push('');
+      out.push('**Description:**');
+      out.push(String(a.description).trim());
+    }
+    if (a.notes) {
+      out.push('');
+      out.push('**Notes:**');
+      out.push(String(a.notes).trim());
+    }
+  }
+  out.push('');
+  return out.join('\n');
+}
+
+document.getElementById('btn-export').addEventListener('click', async () => {
+  const list = visibleList();
+  if (list.length === 0) {
+    toast('Nothing to export in this view', true);
+    return;
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  const result = await window.heatmapAPI.exportApplications({
+    defaultName: `job-applications-${stamp}.md`,
+    content: buildExportMarkdown(list),
+  });
+  if (!result.canceled) {
+    toast(`Exported ${list.length} application${list.length === 1 ? '' : 's'}`);
+  }
+});
+
+// ── Editor pane resize (drag its left edge) ──
+const editorResizer = el('editor-resizer');
+const managerBody = el('manager-body');
+const EDITOR_MIN_WIDTH = 320;
+const LIST_MIN_WIDTH = 260; // keep the list usable while widening the editor
+
+const savedEditorWidth = Number(localStorage.getItem('editorWidth'));
+if (savedEditorWidth >= EDITOR_MIN_WIDTH) {
+  editor.style.width = `${savedEditorWidth}px`;
+}
+
+editorResizer.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  editorResizer.setPointerCapture(e.pointerId);
+  document.body.classList.add('resizing');
+
+  const onMove = (ev) => {
+    const rect = managerBody.getBoundingClientRect();
+    const max = rect.width - LIST_MIN_WIDTH;
+    const width = Math.min(max, Math.max(EDITOR_MIN_WIDTH, rect.right - ev.clientX));
+    editor.style.width = `${width}px`;
+  };
+  const onUp = () => {
+    editorResizer.removeEventListener('pointermove', onMove);
+    editorResizer.removeEventListener('pointerup', onUp);
+    document.body.classList.remove('resizing');
+    const width = parseInt(editor.style.width, 10);
+    if (width) localStorage.setItem('editorWidth', String(width));
+  };
+  editorResizer.addEventListener('pointermove', onMove);
+  editorResizer.addEventListener('pointerup', onUp);
+});
 
 loadApplications();

@@ -29,6 +29,7 @@
       <div class="header-actions">
         <input type="search" id="search" placeholder="Search…" spellcheck="false">
         <button id="btn-stats" class="btn-secondary" title="Toggle insights">Insights</button>
+        <button id="btn-export" class="btn-secondary" title="Export the current view as Markdown (LLM-friendly)">Export</button>
         <button id="btn-new" class="btn-primary">+ New</button>
         <button id="btn-close-manager" title="Close">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -75,6 +76,7 @@
         <div id="empty-state" class="hidden">No applications yet. Click <b>+ New</b> to add one.</div>
       </div>
 
+      <div id="editor-resizer" class="hidden" title="Drag to resize"></div>
       <form id="editor" class="hidden">
         <input type="hidden" id="f-id">
         <div class="ed-grid">
