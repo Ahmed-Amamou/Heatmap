@@ -2,6 +2,7 @@ const spreadsheetIdInput = document.getElementById('spreadsheetId');
 const sheetNameInput = document.getElementById('sheetName');
 const dateColumnInput = document.getElementById('dateColumn');
 const credsStatus = document.getElementById('creds-status');
+const autoLaunchInput = document.getElementById('autoLaunch');
 
 // Load existing config
 (async () => {
@@ -9,6 +10,7 @@ const credsStatus = document.getElementById('creds-status');
   spreadsheetIdInput.value = config.spreadsheetId || '';
   sheetNameInput.value = config.sheetName || 'Sheet1';
   dateColumnInput.value = config.dateColumn || 'F';
+  autoLaunchInput.checked = config.autoLaunch !== false; // pre-toggle configs default on
 })();
 
 // Import credentials
@@ -26,6 +28,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     spreadsheetId: spreadsheetIdInput.value.trim(),
     sheetName: sheetNameInput.value.trim() || 'Sheet1',
     dateColumn: dateColumnInput.value.trim() || 'F',
+    autoLaunch: autoLaunchInput.checked,
   };
 
   await window.heatmapAPI.saveConfig(config);

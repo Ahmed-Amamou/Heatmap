@@ -34,7 +34,7 @@ function loadConfig() {
       return JSON.parse(fs.readFileSync(configFile, 'utf8'));
     }
   } catch {}
-  return { spreadsheetId: '', sheetName: 'Sheet1', dateColumn: 'F' };
+  return { spreadsheetId: '', sheetName: 'Sheet1', dateColumn: 'F', autoLaunch: true };
 }
 
 function saveConfig(config) {
@@ -77,13 +77,17 @@ async function refreshData() {
   return counts;
 }
 
-// Auto-launch on Windows startup (skipped for throwaway test profiles)
-if (!isTestProfile) {
+// Auto-launch on Windows startup. User-controllable from Settings (configs
+// saved before the toggle existed default to on). Skipped for test profiles.
+function applyAutoLaunch(config) {
+  if (isTestProfile) return;
   app.setLoginItemSettings({
-    openAtLogin: true,
+    openAtLogin: config.autoLaunch !== false,
     path: app.getPath('exe'),
   });
 }
+
+applyAutoLaunch(loadConfig());
 
 // Single instance lock. Test profiles bypass it so a throwaway instance can run
 // alongside your real (already-running) Heatmap instead of just focusing it.
@@ -193,7 +197,7 @@ function createSettingsWindow() {
 
   settingsWindow = new BrowserWindow({
     width: 400,
-    height: 340,
+    height: 380,
     frame: false,
     transparent: true,
     resizable: false,
@@ -367,6 +371,7 @@ ipcMain.handle('get-config', () => {
 ipcMain.handle('save-config', (_event, config) => {
   saveConfig(config);
   initSheets();
+  applyAutoLaunch(config);
   return { success: true };
 });
 
