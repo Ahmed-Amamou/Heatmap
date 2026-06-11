@@ -29,7 +29,12 @@ async function initDb() {
   dbPath = path.join(app.getPath('userData'), 'heatmap.db');
 
   if (fs.existsSync(dbPath)) {
-    db = new SQL.Database(fs.readFileSync(dbPath));
+    const bytes = fs.readFileSync(dbPath);
+    db = new SQL.Database(bytes);
+    // The file opened fine — keep a copy as the last-known-good fallback.
+    try {
+      fs.writeFileSync(dbPath + '.bak', bytes);
+    } catch {}
   } else {
     db = new SQL.Database();
   }
@@ -63,8 +68,12 @@ function getDb() {
   return db;
 }
 
+// Atomic flush: write to a temp file, then rename over the real one, so a
+// crash or power loss mid-write can never leave a half-written (corrupt) DB.
 function persist() {
-  fs.writeFileSync(dbPath, Buffer.from(db.export()));
+  const tmpPath = dbPath + '.tmp';
+  fs.writeFileSync(tmpPath, Buffer.from(db.export()));
+  fs.renameSync(tmpPath, dbPath);
 }
 
 function buildRow(appData) {
