@@ -7,22 +7,49 @@ html, body {
   flex-direction: column;
   height: 100vh;
   background: rgba(13, 17, 23, 0.99);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 16px;
   color: #c9d1d9;
   overflow: hidden;
-  transform-origin: var(--zoom-origin, 50% 50%);
-  will-change: transform, opacity;
-  animation: zoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  /* Invisible until the open handshake starts the zoom (window is hidden
+     until then anyway); revealed by .zoom-in / .zoom-done. */
+  opacity: 0;
 }
 
-/* macOS-style zoom-open from the clicked icon (see --zoom-origin). The transform
-   layer is cleared in manager.js on animationend so the drag region works. */
+/* macOS-style zoom from the clicked icon (see --zoom-origin). States are
+   class-driven from manager.js: .zoom-in plays the open animation over an
+   already-rendered DOM, .zoom-done is the resting state (it alone carries the
+   backdrop blur — filtering every frame of a scale animation drops frames),
+   .zoom-out plays the close animation, then the window actually closes. */
+#manager.zoom-in {
+  opacity: 1;
+  transform-origin: var(--zoom-origin, 50% 50%);
+  will-change: transform, opacity;
+  animation: zoomIn 0.38s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+#manager.zoom-done {
+  opacity: 1;
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+#manager.zoom-out {
+  opacity: 1;
+  transform-origin: var(--zoom-origin, 50% 50%);
+  will-change: transform, opacity;
+  animation: zoomOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
 @keyframes zoomIn {
-  from { opacity: 0; transform: scale(0.82); }
-  to   { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0; transform: scale(0.45); }
+  40%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes zoomOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.6); }
 }
 
 /* ── Header ── */

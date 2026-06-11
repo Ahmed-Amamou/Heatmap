@@ -243,6 +243,7 @@ function createManagerWindow(origin) {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
   });
 
@@ -259,11 +260,23 @@ function createManagerWindow(origin) {
 
   managerWindow.loadFile(path.join(__dirname, 'renderer', 'manager.html'), { query });
 
-  managerWindow.once('ready-to-show', () => {
+  // Show only once the renderer has loaded its data and painted
+  // ('manager-ready'), so the zoom-open animation runs over a fully-built DOM
+  // instead of competing with the initial render. Fallback shows it anyway if
+  // the signal never arrives.
+  let shown = false;
+  const showAndZoom = () => {
+    if (shown || !managerWindow) return;
+    shown = true;
     managerWindow.show();
-  });
+    managerWindow.webContents.send('zoom-open');
+  };
+  ipcMain.once('manager-ready', showAndZoom);
+  const showFallback = setTimeout(showAndZoom, 1200);
 
   managerWindow.on('closed', () => {
+    clearTimeout(showFallback);
+    ipcMain.removeListener('manager-ready', showAndZoom);
     managerWindow = null;
   });
 }

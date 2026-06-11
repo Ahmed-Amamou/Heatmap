@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('heatmapAPI', {
   pickCredentialsFile: () => ipcRenderer.invoke('pick-credentials-file'),
   openManager: (origin) => ipcRenderer.send('open-manager', origin),
   closeManager: () => ipcRenderer.send('close-manager'),
+  managerReady: () => ipcRenderer.send('manager-ready'),
+  onZoomOpen: (callback) => {
+    ipcRenderer.on('zoom-open', () => callback());
+  },
   listApplications: () => ipcRenderer.invoke('list-applications'),
   saveApplication: (appData) => ipcRenderer.invoke('save-application', appData),
   deleteApplication: (id) => ipcRenderer.invoke('delete-application', id),

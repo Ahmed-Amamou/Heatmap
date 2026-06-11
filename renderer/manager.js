@@ -1,24 +1,20 @@
-// The open animation promotes #manager to its own transform/compositor layer,
-// which suppresses the title-bar drag region (-webkit-app-region) until a
-// recomposite. Clear the layer as soon as the zoom finishes so the window is
-// draggable right away.
-(function clearZoomLayerAfterOpen() {
-  const root = document.getElementById('manager');
-  if (!root) return;
-  root.addEventListener('animationend', function onEnd(e) {
-    if (e.target !== root) return;
-    root.removeEventListener('animationend', onEnd);
+// ── macOS-style zoom open/close ──
+// The window stays hidden until the first data render finishes (main waits for
+// our 'manager-ready'), then 'zoom-open' starts the animation over a static,
+// fully-built DOM — no mid-animation layout, no dropped frames. Closing plays
+// a short zoom-out before the window actually closes.
+const managerRoot = document.getElementById('manager');
 
-    // Drop the transform/compositor layer so the header is no longer inside a
-    // transformed ancestor.
-    root.style.animation = 'none';
-    root.style.willChange = 'auto';
-    root.style.transform = 'none';
-    root.style.transformOrigin = '';
-
-    // Electron cached "no draggable region" while the panel was transformed and
-    // only recomputes on a layout change. Briefly toggle the header's app-region
-    // to force a fresh DraggableRegionsChanged so the window is movable again.
+managerRoot.addEventListener('animationend', (e) => {
+  if (e.target !== managerRoot) return;
+  if (e.animationName === 'zoomIn') {
+    // Drop the transform/compositor layer once open. Electron cached "no
+    // draggable region" while the panel was transformed and only recomputes on
+    // a layout change, so toggle the header's app-region to force a fresh
+    // DraggableRegionsChanged — otherwise the window can't be moved until a
+    // manual resize.
+    managerRoot.classList.remove('zoom-in');
+    managerRoot.classList.add('zoom-done');
     const header = document.getElementById('manager-header');
     if (header) {
       header.style.webkitAppRegion = 'no-drag';
@@ -27,8 +23,31 @@
         header.style.webkitAppRegion = 'drag';
       });
     }
-  });
-})();
+  } else if (e.animationName === 'zoomOut') {
+    window.heatmapAPI.closeManager();
+  }
+});
+
+window.heatmapAPI.onZoomOpen(() => {
+  managerRoot.classList.add('zoom-in');
+});
+
+// Never stay invisible if the open handshake fails for any reason.
+setTimeout(() => {
+  if (!managerRoot.classList.contains('zoom-in') && !managerRoot.classList.contains('zoom-done')) {
+    managerRoot.classList.add('zoom-done');
+  }
+}, 2000);
+
+let isClosing = false;
+function closeManagerAnimated() {
+  if (isClosing) return;
+  isClosing = true;
+  flushPendingAutosave(); // the save IPC lands in main before the window closes
+  managerRoot.classList.remove('zoom-in', 'zoom-done');
+  managerRoot.classList.add('zoom-out');
+  setTimeout(() => window.heatmapAPI.closeManager(), 350); // animationend fallback
+}
 
 const FIELDS = [
   'job_title', 'company', 'location', 'applying_date', 'job_type',
@@ -401,9 +420,7 @@ document.getElementById('btn-new').addEventListener('click', () => openEditor(nu
 document.getElementById('btn-cancel').addEventListener('click', closeEditor);
 searchInput.addEventListener('input', render);
 
-document.getElementById('btn-close-manager').addEventListener('click', () => {
-  window.heatmapAPI.closeManager();
-});
+document.getElementById('btn-close-manager').addEventListener('click', closeManagerAnimated);
 
 document.getElementById('btn-stats').addEventListener('click', () => {
   const collapsed = el('stats-panel').classList.toggle('collapsed');
@@ -475,7 +492,7 @@ document.addEventListener('keydown', (e) => {
     else if (!statusPanel.classList.contains('hidden')) closeStatusPanel();
     else if (!jobtypePanel.classList.contains('hidden')) closeJobTypePanel();
     else if (!editor.classList.contains('hidden')) closeEditor();
-    else window.heatmapAPI.closeManager();
+    else closeManagerAnimated();
     return;
   }
 
@@ -1043,4 +1060,8 @@ editorResizer.addEventListener('pointerdown', (e) => {
   editorResizer.addEventListener('pointerup', onUp);
 });
 
-loadApplications();
+// First data render, then tell main we're ready to be shown — the zoom-open
+// animation starts only after this, over a finished layout.
+loadApplications().finally(() => {
+  requestAnimationFrame(() => window.heatmapAPI.managerReady());
+});
