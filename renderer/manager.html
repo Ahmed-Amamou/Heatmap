@@ -29,7 +29,7 @@
       <div class="header-actions">
         <input type="search" id="search" placeholder="Search…" spellcheck="false">
         <button id="btn-stats" class="btn-secondary" title="Toggle insights">Insights</button>
-        <button id="btn-export" class="btn-secondary" title="Export the current view as Markdown (LLM-friendly)">Export</button>
+        <button id="btn-export" class="btn-secondary" title="Export the current view as Markdown (LLM-friendly)">Export ALL</button>
         <button id="btn-new" class="btn-primary">+ New</button>
         <button id="btn-close-manager" title="Close">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -142,6 +142,7 @@
 
         <div class="editor-actions">
           <button type="button" id="btn-delete" class="btn-danger hidden">Delete</button>
+          <button type="button" id="btn-export-one" class="btn-secondary hidden" title="Export this application as Markdown (LLM-friendly)">Export</button>
           <span id="sync-status" class="field-hint"></span>
           <div class="spacer"></div>
           <button type="button" id="btn-cancel" class="btn-secondary">Cancel</button>

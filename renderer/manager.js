@@ -377,6 +377,7 @@ function openEditor(app) {
   closeJobTypePanel();
 
   deleteBtn.classList.toggle('hidden', !app);
+  el('btn-export-one').classList.toggle('hidden', !app);
   syncStatus.textContent = '';
   syncStatus.className = 'field-hint';
   editor.classList.remove('hidden');
@@ -540,6 +541,7 @@ editor.addEventListener('submit', async (e) => {
     syncStatus.textContent = '';
     el('f-id').value = id;
     deleteBtn.classList.remove('hidden');
+    el('btn-export-one').classList.remove('hidden');
     toast(syncError ? 'Saved locally · sheet sync failed' : 'Application saved', !!syncError);
   } finally {
     isSaving = false;
@@ -844,6 +846,34 @@ attachAutocomplete(el('f-resume_version'), 'resume_version');
 // ── Export (Markdown, LLM-friendly) ──
 // Markdown keeps the structure readable for both humans and LLMs, so the file
 // can be pasted straight into a chat for interview prep or recruiter emails.
+function appendAppMarkdown(out, a, heading) {
+  const title = [a.job_title, a.company].filter(Boolean).join(' — ') || 'Untitled application';
+  out.push(`${heading} ${title}`);
+  out.push('');
+
+  const facts = [
+    ['Location', a.location],
+    ['Applied', formatDisplayDate(a.applying_date)],
+    ['Job Type', a.job_type],
+    ['Status', a.status],
+    ['Resume Version', a.resume_version],
+    ['Contact', a.contact],
+  ];
+  for (const [label, value] of facts) {
+    if (value) out.push(`- **${label}:** ${value}`);
+  }
+  if (a.description) {
+    out.push('');
+    out.push('**Description:**');
+    out.push(String(a.description).trim());
+  }
+  if (a.notes) {
+    out.push('');
+    out.push('**Notes:**');
+    out.push(String(a.notes).trim());
+  }
+}
+
 function buildExportMarkdown(list) {
   const out = [];
   out.push('# Job Applications');
@@ -851,33 +881,16 @@ function buildExportMarkdown(list) {
   out.push(`Exported ${formatDisplayDate(new Date().toISOString().slice(0, 10))} · ${list.length} application${list.length === 1 ? '' : 's'}.`);
 
   for (const a of list) {
-    const title = [a.job_title, a.company].filter(Boolean).join(' — ') || 'Untitled application';
     out.push('');
-    out.push(`## ${title}`);
-    out.push('');
-
-    const facts = [
-      ['Location', a.location],
-      ['Applied', formatDisplayDate(a.applying_date)],
-      ['Job Type', a.job_type],
-      ['Status', a.status],
-      ['Resume Version', a.resume_version],
-      ['Contact', a.contact],
-    ];
-    for (const [label, value] of facts) {
-      if (value) out.push(`- **${label}:** ${value}`);
-    }
-    if (a.description) {
-      out.push('');
-      out.push('**Description:**');
-      out.push(String(a.description).trim());
-    }
-    if (a.notes) {
-      out.push('');
-      out.push('**Notes:**');
-      out.push(String(a.notes).trim());
-    }
+    appendAppMarkdown(out, a, '##');
   }
+  out.push('');
+  return out.join('\n');
+}
+
+function buildSingleExportMarkdown(a) {
+  const out = [];
+  appendAppMarkdown(out, a, '#');
   out.push('');
   return out.join('\n');
 }
@@ -896,6 +909,24 @@ document.getElementById('btn-export').addEventListener('click', async () => {
   if (!result.canceled) {
     toast(`Exported ${list.length} application${list.length === 1 ? '' : 's'}`);
   }
+});
+
+// Export just the application open in the editor, using the form's current
+// values so unsaved tweaks are included.
+document.getElementById('btn-export-one').addEventListener('click', async () => {
+  const a = {};
+  for (const f of FIELDS) a[f] = el(`f-${f}`).value.trim() || null;
+
+  const slug = String(a.company || a.job_title || 'application')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'application';
+
+  const result = await window.heatmapAPI.exportApplications({
+    defaultName: `application-${slug}.md`,
+    content: buildSingleExportMarkdown(a),
+  });
+  if (!result.canceled) toast('Application exported');
 });
 
 // ── Editor pane resize (drag its left edge) ──

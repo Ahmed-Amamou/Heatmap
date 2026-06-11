@@ -227,8 +227,8 @@ function createManagerWindow(origin) {
   }
 
   managerWindow = new BrowserWindow({
-    width: 860,
-    height: 620,
+    width: 980,
+    height: 700,
     minWidth: 640,
     minHeight: 480,
     frame: false,
