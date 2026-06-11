@@ -365,6 +365,8 @@ function toast(message, isError = false) {
 }
 
 function openEditor(app) {
+  flushPendingAutosave(); // don't lose pending edits when switching rows
+  editSession++;
   selectedId = app ? app.id : null;
   el('f-id').value = app ? app.id : '';
 
@@ -382,11 +384,13 @@ function openEditor(app) {
   syncStatus.className = 'field-hint';
   editor.classList.remove('hidden');
   el('editor-resizer').classList.remove('hidden');
+  lastSavedSnapshot = formSnapshot();
   render();
   el('f-job_title').focus();
 }
 
 function closeEditor() {
+  flushPendingAutosave(); // closing never discards edits
   selectedId = null;
   editor.classList.add('hidden');
   el('editor-resizer').classList.add('hidden');
@@ -521,33 +525,102 @@ function confirmDialog() {
 let isSaving = false;
 const saveBtn = el('btn-save-app');
 
-editor.addEventListener('submit', async (e) => {
-  e.preventDefault();
+// ── Autosave ──
+// Saves shortly after the last edit so forgetting to click Save can't lose
+// work. 2.5s is long enough not to fire mid-thought on brief typing pauses
+// (each save also syncs to the sheet), short enough that closing right after
+// typing still catches it — and closing/switching flushes pending edits anyway.
+const AUTOSAVE_DELAY = 2500;
+let autosaveTimer = null;
+let lastSavedSnapshot = '';
+let editSession = 0; // invalidates in-flight saves once the form is repopulated
+
+function formSnapshot() {
+  return FIELDS.map((f) => el(`f-${f}`).value.trim()).join('');
+}
+
+function formIsDirty() {
+  return formSnapshot() !== lastSavedSnapshot;
+}
+
+// Don't create a record for a new application until it has something to
+// identify it by — avoids ghost rows from an opened-then-abandoned form.
+function formIsSaveable() {
+  return !!(el('f-id').value || el('f-job_title').value.trim() || el('f-company').value.trim());
+}
+
+function scheduleAutosave() {
+  if (editor.classList.contains('hidden')) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    if (isSaving) { scheduleAutosave(); return; } // retry once in-flight save ends
+    if (editor.classList.contains('hidden') || !formIsDirty() || !formIsSaveable()) return;
+    persistForm({ auto: true });
+  }, AUTOSAVE_DELAY);
+}
+
+// Save immediately if edits are pending; called right before the form is
+// closed or repopulated with another application. Reads the form
+// synchronously, so the values are captured before they're replaced.
+function flushPendingAutosave() {
+  clearTimeout(autosaveTimer);
+  if (editor.classList.contains('hidden') || isSaving) return;
+  if (formIsDirty() && formIsSaveable()) persistForm({ auto: true });
+}
+
+async function persistForm({ auto = false } = {}) {
   if (isSaving) return;
   isSaving = true;
   saveBtn.disabled = true;
+  clearTimeout(autosaveTimer);
 
+  const session = editSession;
   const appData = { id: el('f-id').value || undefined };
   for (const f of FIELDS) appData[f] = el(`f-${f}`).value.trim() || null;
+  const snapshot = formSnapshot();
 
-  syncStatus.textContent = 'Saving…';
+  syncStatus.textContent = auto ? 'Auto-saving…' : 'Saving…';
   syncStatus.className = 'field-hint';
 
   try {
     const { id, syncError } = await window.heatmapAPI.saveApplication(appData);
-    selectedId = id;
+    // Skip form updates if the editor moved on to another application (or
+    // closed) while the save was in flight.
+    const formStillCurrent = session === editSession && !editor.classList.contains('hidden');
+
+    if (formStillCurrent) {
+      lastSavedSnapshot = snapshot;
+      selectedId = id;
+      el('f-id').value = id;
+      deleteBtn.classList.remove('hidden');
+      el('btn-export-one').classList.remove('hidden');
+    }
     await loadApplications();
 
-    syncStatus.textContent = '';
-    el('f-id').value = id;
-    deleteBtn.classList.remove('hidden');
-    el('btn-export-one').classList.remove('hidden');
-    toast(syncError ? 'Saved locally · sheet sync failed' : 'Application saved', !!syncError);
+    if (!auto) {
+      syncStatus.textContent = '';
+      toast(syncError ? 'Saved locally · sheet sync failed' : 'Application saved', !!syncError);
+    } else if (formStillCurrent) {
+      syncStatus.textContent = syncError ? 'Auto-saved locally · sheet sync failed' : 'Auto-saved ✓';
+      syncStatus.className = syncError ? 'field-hint' : 'field-hint success';
+    } else {
+      toast(syncError ? 'Auto-saved locally · sheet sync failed' : 'Changes auto-saved', !!syncError);
+    }
   } finally {
     isSaving = false;
     saveBtn.disabled = false;
   }
+}
+
+editor.addEventListener('submit', (e) => {
+  e.preventDefault();
+  persistForm();
 });
+
+// Typed fields and the status checkboxes all bubble input events; the
+// programmatic pickers (chips, job type, autocomplete) call scheduleAutosave
+// from their own handlers.
+editor.addEventListener('input', scheduleAutosave);
 
 deleteBtn.addEventListener('click', async () => {
   const id = el('f-id').value;
@@ -556,6 +629,10 @@ deleteBtn.addEventListener('click', async () => {
 
   const { syncError } = await window.heatmapAPI.deleteApplication(id);
   await loadApplications();
+  // Neutralize autosave so closing doesn't re-save (resurrect) the deleted app.
+  clearTimeout(autosaveTimer);
+  lastSavedSnapshot = formSnapshot();
+  editSession++;
   closeEditor();
   toast(syncError ? 'Deleted locally · sheet sync failed' : 'Application deleted', !!syncError);
 });
@@ -641,6 +718,7 @@ function updateStatusUI() {
       statusSelected.delete(label);
       buildStatusPanel();
       updateStatusUI();
+      scheduleAutosave();
     });
 
     chip.appendChild(x);
@@ -716,6 +794,7 @@ function buildJobTypePanel() {
       buildJobTypePanel();
       updateJobTypeUI();
       closeJobTypePanel();
+      scheduleAutosave();
     });
     jobtypePanel.appendChild(row);
   };
@@ -806,6 +885,7 @@ function attachAutocomplete(input, field) {
         e.preventDefault(); // keep focus, beat the blur
         input.value = v;
         close();
+        scheduleAutosave();
       });
       row.addEventListener('mouseenter', () => highlight(idx));
       panel.appendChild(row);
@@ -831,6 +911,7 @@ function attachAutocomplete(input, field) {
         e.preventDefault();
         input.value = items[active];
         close();
+        scheduleAutosave();
       }
     } else if (e.key === 'Escape') {
       e.stopPropagation(); // don't let the global handler close the editor
