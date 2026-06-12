@@ -798,6 +798,23 @@ body.resizing {
   z-index: 70;
 }
 
+.iv-cal {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.iv-cal:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .iv-del {
   background: transparent;
   border: none;

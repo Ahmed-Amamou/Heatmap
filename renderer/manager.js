@@ -1142,6 +1142,14 @@ function renderInterviews() {
     dt.addEventListener('input', () => { iv.scheduled_at = dt.value; queueSave(); });
     row1.appendChild(dt);
 
+    const cal = document.createElement('button');
+    cal.type = 'button';
+    cal.className = 'iv-cal';
+    cal.title = 'Export to calendar (.ics)';
+    cal.textContent = '📅';
+    cal.addEventListener('click', () => exportInterviewIcs(iv));
+    row1.appendChild(cal);
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'iv-del';
@@ -1236,6 +1244,49 @@ function showInlineScheduler(afterRow, stage) {
   box.appendChild(skip);
   afterRow.insertAdjacentElement('afterend', box);
   dt.focus();
+}
+
+// ── Calendar export (.ics) ──
+function icsEscape(s) {
+  return String(s || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+async function exportInterviewIcs(iv) {
+  if (!iv.scheduled_at) {
+    toast('Set a date & time first', true);
+    return;
+  }
+  const app = applications.find((a) => a.id === iv.application_id);
+  const summary = `${iv.stage || 'Interview'}${app && app.company ? ' — ' + app.company : ''}`;
+  const desc = [app && app.job_title, iv.format, iv.interviewer, iv.notes].filter(Boolean).join('\n');
+  // Floating local time — calendars interpret it in the user's timezone.
+  const dtStart = iv.scheduled_at.replace(/[-:]/g, '') + '00';
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+
+  const content = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Heatmap//Interview//EN',
+    'BEGIN:VEVENT',
+    `UID:${iv.id || Date.now()}@heatmap`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${dtStart}`,
+    'DURATION:PT1H',
+    `SUMMARY:${icsEscape(summary)}`,
+    `DESCRIPTION:${icsEscape(desc)}`,
+    'END:VEVENT', 'END:VCALENDAR', '',
+  ].join('\r\n');
+
+  const slug = String((app && app.company) || iv.stage || 'event')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'event';
+  const result = await window.heatmapAPI.exportFile({
+    defaultName: `interview-${slug}.ics`,
+    content,
+    filters: [{ name: 'Calendar', extensions: ['ics'] }],
+  });
+  if (!result.canceled) toast('Calendar event exported');
 }
 
 // ── Agenda (upcoming interviews across all applications) ──
@@ -1335,6 +1386,20 @@ function appendAppMarkdown(out, a, heading) {
     out.push('**Notes:**');
     out.push(String(a.notes).trim());
   }
+
+  const ivs = a.id ? allInterviews.filter((i) => i.application_id === a.id) : [];
+  if (ivs.length) {
+    out.push('');
+    out.push('**Interviews:**');
+    for (const iv of ivs) {
+      const bits = [
+        formatEventShort(iv.scheduled_at), iv.stage, iv.format, iv.interviewer,
+        iv.outcome && iv.outcome !== 'upcoming' ? iv.outcome : '',
+      ].filter(Boolean).join(' · ');
+      out.push(`- ${bits || 'Interview'}`);
+      if (iv.notes) out.push(`  - Notes: ${String(iv.notes).trim().replace(/\s*\n\s*/g, ' / ')}`);
+    }
+  }
 }
 
 function buildExportMarkdown(list) {
@@ -1377,7 +1442,7 @@ document.getElementById('btn-export').addEventListener('click', async () => {
 // Export just the application open in the editor, using the form's current
 // values so unsaved tweaks are included.
 document.getElementById('btn-export-one').addEventListener('click', async () => {
-  const a = {};
+  const a = { id: el('f-id').value || null };
   for (const f of FIELDS) a[f] = el(`f-${f}`).value.trim() || null;
 
   const slug = String(a.company || a.job_title || 'application')

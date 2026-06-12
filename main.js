@@ -428,11 +428,12 @@ ipcMain.handle('save-application', async (_event, appData) => {
 ipcMain.handle('delete-application', async (_event, id) => {
   const db = require('./src/db');
   db.deleteApplication(id);
-  db.deleteInterviewsForApplication(id);
+  const interviewIds = db.deleteInterviewsForApplication(id);
 
   let syncError = null;
   try {
     await sheetSyncer.deleteRow(id);
+    for (const ivId of interviewIds) await sheetSyncer.deleteInterviewRow(ivId);
   } catch (err) {
     syncError = err.message;
     console.error('Sheet sync (delete) failed:', err.message);
@@ -501,16 +502,38 @@ ipcMain.handle('list-all-interviews', () => {
   return require('./src/db').listAllInterviews();
 });
 
-ipcMain.handle('save-interview', (_event, data) => {
-  const id = require('./src/db').upsertInterview(data);
+ipcMain.handle('save-interview', async (_event, data) => {
+  const db = require('./src/db');
+  const id = db.upsertInterview(data);
+
+  let syncError = null;
+  try {
+    const saved = db.getInterview(id);
+    const app = db.getApplication(saved.application_id);
+    const label = app ? [app.job_title, app.company].filter(Boolean).join(' — ') : '';
+    await sheetSyncer.upsertInterviewRow(saved, label);
+  } catch (err) {
+    syncError = err.message;
+    console.error('Sheet sync (interview upsert) failed:', err.message);
+  }
+
   notifyDataChanged();
-  return { id };
+  return { id, syncError };
 });
 
-ipcMain.handle('delete-interview', (_event, id) => {
+ipcMain.handle('delete-interview', async (_event, id) => {
   require('./src/db').deleteInterview(id);
+
+  let syncError = null;
+  try {
+    await sheetSyncer.deleteInterviewRow(id);
+  } catch (err) {
+    syncError = err.message;
+    console.error('Sheet sync (interview delete) failed:', err.message);
+  }
+
   notifyDataChanged();
-  return {};
+  return { syncError };
 });
 
 // Write an export file wherever the user picks. Content is built in the
@@ -523,6 +546,18 @@ ipcMain.handle('export-applications', async (_event, { defaultName, content }) =
       { name: 'Markdown', extensions: ['md'] },
       { name: 'Text', extensions: ['txt'] },
     ],
+  });
+  if (result.canceled || !result.filePath) return { canceled: true };
+  fs.writeFileSync(result.filePath, content, 'utf8');
+  return { canceled: false, filePath: result.filePath };
+});
+
+// Same as export-applications but with caller-chosen filters (.ics etc.).
+ipcMain.handle('export-file', async (_event, { defaultName, content, filters }) => {
+  const result = await dialog.showSaveDialog(managerWindow || mainWindow, {
+    title: 'Export',
+    defaultPath: path.join(app.getPath('documents'), defaultName),
+    filters: filters || [{ name: 'All files', extensions: ['*'] }],
   });
   if (result.canceled || !result.filePath) return { canceled: true };
   fs.writeFileSync(result.filePath, content, 'utf8');

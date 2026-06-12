@@ -30,6 +30,9 @@ Every application you log lights up a square. Quiet weeks show up as gaps; produ
 - 🟩 **At-a-glance heatmap** — a rolling 4-month grid with intensity scaling and a live "sent · streak" counter, so progress is impossible to ignore.
 - 🗂️ **Full application tracker** — a dedicated manager window to add, edit, search, filter, and sort every application, with a multi-select status pipeline (Applied → Interview → Offer).
 - 📊 **Insights** — a conversion funnel and key metrics that turn your raw log into "where am I actually losing momentum?"
+- 🎙️ **Interview tracking** — log every interview round per application (stage, date & time, format, interviewer, notes, outcome). Check a stage in the status dropdown and schedule it on the spot.
+- 📅 **Agenda & reminders** — an agenda of all upcoming interviews (Today / Tomorrow / This week), the next one shown right on the widget, Windows toast reminders 24h and 1h before, and one-click `.ics` export to your calendar.
+- 🤖 **LLM-ready export** — export one or all applications (with their interview history) as clean Markdown, ready to paste into an AI chat for interview prep or recruiter emails.
 - ⏳ **Smart auto-reject** — applications that go silent for 100+ days are flagged as rejected automatically, so your stats reflect reality without manual cleanup.
 - 🔄 **Optional Google Sheets sync** — already track applications in a spreadsheet? Connect it for two-way sync. Don't want to? The app is fully functional offline with a local database.
 - ✨ **Polished desktop feel** — frosted-glass dark UI, system tray controls, pin-on-top, position memory, and auto-launch on login.
@@ -52,7 +55,7 @@ Download the latest installer from [**Releases**](https://github.com/Ahmed-Amamo
 3. Share your spreadsheet with the service account's email.
 4. In the app's **Settings**, import the key and paste your spreadsheet ID.
 
-Heatmap then syncs both ways — edits in the app push to the sheet, and the sheet's rows import back in.
+Heatmap then syncs both ways — edits in the app push to the sheet, and the sheet's rows import back in. Interviews sync to their own **Interviews** tab (created automatically).
 
 ## Run from source
 

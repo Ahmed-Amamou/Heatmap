@@ -34,6 +34,48 @@ function formatSheetDate(iso) {
   return `${parseInt(m[3], 10)}-${MONTHS_ABBR[parseInt(m[2], 10) - 1]}-${m[1]}`;
 }
 
+// ── Interviews tab ──
+const IV_SHEET = 'Interviews';
+const IV_HEADER = ['ID', 'Application ID', 'Application', 'Stage', 'When', 'Format', 'Interviewer', 'Outcome', 'Notes'];
+
+// '2026-06-16T14:00' ↔ '16-Jun-2026 14:00' (sheet display format)
+function formatSheetDateTime(local) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(local || ''));
+  if (!m) return local != null ? String(local) : '';
+  return `${parseInt(m[3], 10)}-${MONTHS_ABBR[parseInt(m[2], 10) - 1]}-${m[1]} ${m[4]}:${m[5]}`;
+}
+
+function parseSheetDateTime(raw) {
+  const str = String(raw || '').trim();
+  if (!str) return '';
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})[ T](\d{1,2}):(\d{2})$/.exec(str);
+  if (m) {
+    const mi = MONTHS_ABBR.findIndex((x) => x.toLowerCase() === m[2].toLowerCase());
+    if (mi >= 0) {
+      return `${m[3]}-${String(mi + 1).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}T${String(m[4]).padStart(2, '0')}:${m[5]}`;
+    }
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) return str.slice(0, 16);
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function interviewToRow(iv, appLabel) {
+  return [
+    iv.id,
+    iv.application_id,
+    appLabel || '',
+    iv.stage || '',
+    formatSheetDateTime(iv.scheduled_at),
+    iv.format || '',
+    iv.interviewer || '',
+    iv.outcome || '',
+    iv.notes || '',
+  ];
+}
+
 function columnToLetter(index) {
   let letter = '';
   let n = index;
@@ -162,6 +204,33 @@ function createImporter(config) {
       seeded = idWriteback.length;
     }
 
+    // Pull the Interviews tab too, if it exists — same import-overwrites-local
+    // model as application rows.
+    try {
+      const ivResp = await sheets.spreadsheets.values.get({
+        spreadsheetId: config.spreadsheetId,
+        range: `${IV_SHEET}!A:I`,
+      });
+      const ivRows = ivResp.data.values || [];
+      const db = require('./db');
+      for (let r = 1; r < ivRows.length; r++) {
+        const v = ivRows[r];
+        const id = v[0] ? String(v[0]).trim() : '';
+        const appId = v[1] ? String(v[1]).trim() : '';
+        if (!id || !appId) continue;
+        db.upsertInterview({
+          id,
+          application_id: appId,
+          stage: v[3] || '',
+          scheduled_at: parseSheetDateTime(v[4]),
+          format: v[5] || '',
+          interviewer: v[6] || '',
+          outcome: v[7] || 'upcoming',
+          notes: v[8] || '',
+        });
+      }
+    } catch {} // no Interviews tab yet — that's fine
+
     return { imported: apps.length, seeded };
   };
 }
@@ -230,7 +299,87 @@ function createSyncer(config) {
     return -1;
   }
 
+  async function ensureInterviewsTab(sheets) {
+    const meta = await sheets.spreadsheets.get({
+      spreadsheetId: config.spreadsheetId,
+      fields: 'sheets.properties',
+    });
+    const found = (meta.data.sheets || []).find((s) => s.properties.title === IV_SHEET);
+    if (found) return;
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: config.spreadsheetId,
+      requestBody: { requests: [{ addSheet: { properties: { title: IV_SHEET } } }] },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config.spreadsheetId,
+      range: `${IV_SHEET}!A1:I1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [IV_HEADER] },
+    });
+  }
+
+  async function findInterviewRow(sheets, id) {
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: config.spreadsheetId,
+      range: `${IV_SHEET}!A:A`,
+    });
+    const rows = resp.data.values || [];
+    for (let r = 1; r < rows.length; r++) {
+      if (rows[r][0] && String(rows[r][0]).trim() === id) return r + 1;
+    }
+    return -1;
+  }
+
   return {
+    async upsertInterviewRow(iv, appLabel) {
+      if (!config.spreadsheetId) return;
+      const sheets = await getSheetsClient();
+      await ensureInterviewsTab(sheets);
+      const rowArr = interviewToRow(iv, appLabel);
+      const rowNumber = await findInterviewRow(sheets, iv.id);
+
+      if (rowNumber > 0) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: config.spreadsheetId,
+          range: `${IV_SHEET}!A${rowNumber}:I${rowNumber}`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [rowArr] },
+        });
+      } else {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: config.spreadsheetId,
+          range: `${IV_SHEET}!A:I`,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: [rowArr] },
+        });
+      }
+    },
+
+    async deleteInterviewRow(id) {
+      if (!config.spreadsheetId) return;
+      const sheets = await getSheetsClient();
+      const rowNumber = await findInterviewRow(sheets, id);
+      if (rowNumber < 0) return;
+      const sheetId = await getSheetId(sheets, IV_SHEET);
+      if (sheetId == null) return;
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: config.spreadsheetId,
+        requestBody: {
+          requests: [{
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: rowNumber - 1,
+                endIndex: rowNumber,
+              },
+            },
+          }],
+        },
+      });
+    },
+
     async upsertRow(appData) {
       if (!config.spreadsheetId) return;
       const sheets = await getSheetsClient();
