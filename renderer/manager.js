@@ -71,6 +71,8 @@ const syncStatus = document.getElementById('sync-status');
 const deleteBtn = document.getElementById('btn-delete');
 
 let applications = [];
+let allInterviews = []; // every interview, for list pills and the agenda
+let upcomingByApp = new Map(); // application_id → next relevant interview
 let selectedId = null;
 let currentFilter = 'all';
 let currentSort = 'newest';
@@ -83,10 +85,26 @@ function el(id) {
 }
 
 async function loadApplications() {
-  applications = await window.heatmapAPI.listApplications();
+  [applications, allInterviews] = await Promise.all([
+    window.heatmapAPI.listApplications(),
+    window.heatmapAPI.listAllInterviews(),
+  ]);
+  rebuildUpcomingByApp();
   buildFilters();
   renderStats();
   render();
+}
+
+// For each application, the interview that matters in the list: the next
+// scheduled one still marked upcoming (overdue ones stay visible — they need
+// an outcome logged).
+function rebuildUpcomingByApp() {
+  upcomingByApp = new Map();
+  for (const iv of allInterviews) {
+    if (iv.outcome !== 'upcoming' || !iv.scheduled_at) continue;
+    const cur = upcomingByApp.get(iv.application_id);
+    if (!cur || iv.scheduled_at < cur.scheduled_at) upcomingByApp.set(iv.application_id, iv);
+  }
 }
 
 // The list as currently displayed: filter + search + sort applied.
@@ -136,7 +154,7 @@ function render() {
     tr.innerHTML = `
       <td class="title-cell">${escapeHtml(app.job_title) || '—'}</td>
       <td>${escapeHtml(app.company) || '—'}</td>
-      <td>${escapeHtml(formatDisplayDate(app.applying_date)) || '—'}${followup}</td>
+      <td>${escapeHtml(formatDisplayDate(app.applying_date)) || '—'}${followup}${ivPillHtml(app)}</td>
       <td>${renderStatusPills(app)}</td>
     `;
     tr.addEventListener('click', () => openEditor(app));
@@ -404,6 +422,7 @@ function openEditor(app) {
   editor.classList.remove('hidden');
   el('editor-resizer').classList.remove('hidden');
   lastSavedSnapshot = formSnapshot();
+  loadEditorInterviews(app ? app.id : null);
   render();
   el('f-job_title').focus();
 }
@@ -698,6 +717,9 @@ function buildStatusPanel() {
       if (cb.checked) statusSelected.add(opt);
       else statusSelected.delete(opt);
       updateStatusUI();
+      // Reaching an interview stage usually means one just got scheduled —
+      // offer to log it right here.
+      if (cb.checked && IV_STAGES.includes(opt)) showInlineScheduler(row, opt);
     });
 
     const span = document.createElement('span');
@@ -940,6 +962,275 @@ function attachAutocomplete(input, field) {
 attachAutocomplete(el('f-company'), 'company');
 attachAutocomplete(el('f-location'), 'location');
 attachAutocomplete(el('f-resume_version'), 'resume_version');
+
+// ── Interviews ──
+const IV_STAGES = [
+  'HR Call', 'HR Screen', 'Online Logic test', 'Coding test',
+  'Tech Interview', 'Manager Interview', 'Final Interview',
+];
+const IV_FORMATS = ['Video', 'Call', 'On-site'];
+const IV_OUTCOMES = ['upcoming', 'passed', 'failed'];
+const IV_STAGE_SHORT = {
+  'HR Call': 'HR', 'HR Screen': 'HR', 'Online Logic test': 'Logic',
+  'Coding test': 'Code', 'Tech Interview': 'Tech',
+  'Manager Interview': 'Mgr', 'Final Interview': 'Final',
+};
+
+let editorInterviews = [];
+
+function parseLocalDt(s) {
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// '2026-06-16T14:00' → '16 Jun · 14:00'
+function formatEventShort(s) {
+  const d = parseLocalDt(s);
+  if (!d) return '';
+  return `${d.getDate()} ${MONTHS_ABBR[d.getMonth()]} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function ivTiming(iv) {
+  const d = parseLocalDt(iv.scheduled_at);
+  if (!d) return '';
+  const delta = d.getTime() - Date.now();
+  if (delta < 0) return 'overdue';
+  if (delta < 24 * 60 * 60 * 1000) return 'soon';
+  return '';
+}
+
+function ivPillHtml(app) {
+  const iv = upcomingByApp.get(app.id);
+  if (!iv) return '';
+  const short = IV_STAGE_SHORT[iv.stage] || iv.stage || 'Interview';
+  return `<span class="iv-pill ${ivTiming(iv)}" title="${escapeHtml(iv.stage || 'Interview')} — ${escapeHtml(formatEventShort(iv.scheduled_at))}">${escapeHtml(short)} · ${escapeHtml(formatEventShort(iv.scheduled_at))}</span>`;
+}
+
+async function loadEditorInterviews(applicationId) {
+  editorInterviews = applicationId
+    ? await window.heatmapAPI.listInterviews(applicationId)
+    : [];
+  renderInterviews();
+}
+
+// The application id the editor is working on; for a brand-new application,
+// autosaves it first so interviews have something to attach to.
+async function ensureAppId() {
+  if (el('f-id').value) return el('f-id').value;
+  if (!formIsSaveable()) {
+    toast('Add a job title or company first', true);
+    return null;
+  }
+  await persistForm({ auto: true });
+  return el('f-id').value || null;
+}
+
+async function saveInterviewRecord(iv) {
+  const { id } = await window.heatmapAPI.saveInterview(iv);
+  iv.id = id;
+  rebuildAfterInterviewChange();
+}
+
+async function rebuildAfterInterviewChange() {
+  allInterviews = await window.heatmapAPI.listAllInterviews();
+  rebuildUpcomingByApp();
+  render();
+}
+
+async function addInterview(stage = '', scheduledAt = '') {
+  const appId = await ensureAppId();
+  if (!appId) return null;
+  const iv = {
+    application_id: appId,
+    stage,
+    scheduled_at: scheduledAt,
+    format: '',
+    interviewer: '',
+    notes: '',
+    outcome: 'upcoming',
+  };
+  await saveInterviewRecord(iv);
+  if (el('f-id').value === appId) {
+    editorInterviews.push(iv);
+    renderInterviews();
+  }
+  return iv;
+}
+
+// Small single-select reusing the .dd-* theme, built per interview card.
+function miniDropdown(options, value, placeholder, onPick) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dropdown iv-dd';
+  const ctrl = document.createElement('div');
+  ctrl.className = 'dd-control';
+  ctrl.tabIndex = 0;
+  const labEl = document.createElement('span');
+  labEl.textContent = value || placeholder;
+  if (!value) labEl.classList.add('ms-placeholder');
+  const panel = document.createElement('div');
+  panel.className = 'dd-panel hidden';
+
+  for (const opt of options) {
+    const row = document.createElement('div');
+    row.className = 'dd-option' + (opt === value ? ' selected' : '');
+    row.textContent = opt;
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel.classList.add('hidden');
+      labEl.textContent = opt;
+      labEl.classList.remove('ms-placeholder');
+      [...panel.children].forEach((r) => r.classList.toggle('selected', r === row));
+      onPick(opt);
+    });
+    panel.appendChild(row);
+  }
+
+  ctrl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.iv-dd .dd-panel, .iv-inline').forEach((p) => {
+      if (p !== panel) p.classList.contains('iv-inline') ? p.remove() : p.classList.add('hidden');
+    });
+    panel.classList.toggle('hidden');
+  });
+  ctrl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctrl.click(); }
+    else if (e.key === 'Escape') panel.classList.add('hidden');
+  });
+
+  wrap.appendChild(ctrl);
+  wrap.appendChild(panel);
+  return wrap;
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.iv-dd')) {
+    document.querySelectorAll('.iv-dd .dd-panel').forEach((p) => p.classList.add('hidden'));
+  }
+});
+
+function renderInterviews() {
+  const list = el('interview-list');
+  list.innerHTML = '';
+
+  for (const iv of editorInterviews) {
+    const card = document.createElement('div');
+    card.className = 'iv-card';
+
+    // Debounced save for typed fields; dropdowns/outcome save immediately.
+    let saveTimer;
+    const queueSave = () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => saveInterviewRecord(iv), 600);
+    };
+
+    const row1 = document.createElement('div');
+    row1.className = 'iv-row';
+    row1.appendChild(miniDropdown(IV_STAGES, iv.stage, 'Stage…', (v) => {
+      iv.stage = v;
+      saveInterviewRecord(iv);
+    }));
+
+    const dt = document.createElement('input');
+    dt.type = 'datetime-local';
+    dt.value = iv.scheduled_at || '';
+    dt.addEventListener('input', () => { iv.scheduled_at = dt.value; queueSave(); });
+    row1.appendChild(dt);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'iv-del';
+    del.title = 'Remove interview';
+    del.textContent = '×';
+    del.addEventListener('click', async () => {
+      clearTimeout(saveTimer);
+      if (iv.id) await window.heatmapAPI.deleteInterview(iv.id);
+      editorInterviews = editorInterviews.filter((x) => x !== iv);
+      renderInterviews();
+      rebuildAfterInterviewChange();
+      toast('Interview removed');
+    });
+    row1.appendChild(del);
+    card.appendChild(row1);
+
+    const row2 = document.createElement('div');
+    row2.className = 'iv-row';
+    row2.appendChild(miniDropdown(IV_FORMATS, iv.format, 'Format…', (v) => {
+      iv.format = v;
+      saveInterviewRecord(iv);
+    }));
+
+    const who = document.createElement('input');
+    who.type = 'text';
+    who.placeholder = 'Interviewer / contact';
+    who.spellcheck = false;
+    who.value = iv.interviewer || '';
+    who.addEventListener('input', () => { iv.interviewer = who.value.trim(); queueSave(); });
+    row2.appendChild(who);
+    card.appendChild(row2);
+
+    const notes = document.createElement('textarea');
+    notes.rows = 1;
+    notes.placeholder = 'Notes (prep, questions asked, impressions…)';
+    notes.spellcheck = false;
+    notes.value = iv.notes || '';
+    notes.addEventListener('input', () => { iv.notes = notes.value; queueSave(); });
+    card.appendChild(notes);
+
+    const seg = document.createElement('div');
+    seg.className = 'iv-seg';
+    for (const o of IV_OUTCOMES) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'iv-seg-btn' + (iv.outcome === o ? ` active ${o}` : '');
+      b.textContent = o[0].toUpperCase() + o.slice(1);
+      b.addEventListener('click', () => {
+        iv.outcome = o;
+        saveInterviewRecord(iv);
+        renderInterviews();
+      });
+      seg.appendChild(b);
+    }
+    card.appendChild(seg);
+
+    list.appendChild(card);
+  }
+}
+
+document.getElementById('btn-add-interview').addEventListener('click', () => addInterview());
+
+// Inline "When?" — checking an interview-type stage in the status dropdown
+// offers to schedule it right there, at the moment you'd naturally record it.
+function showInlineScheduler(afterRow, stage) {
+  document.querySelectorAll('.iv-inline').forEach((p) => p.remove());
+
+  const box = document.createElement('div');
+  box.className = 'iv-inline';
+
+  const dt = document.createElement('input');
+  dt.type = 'datetime-local';
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'iv-inline-add';
+  add.textContent = 'Schedule';
+  add.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!dt.value) { dt.focus(); return; }
+    box.remove();
+    const iv = await addInterview(stage, dt.value);
+    if (iv) toast(`${stage} scheduled · ${formatEventShort(dt.value)}`);
+  });
+  const skip = document.createElement('button');
+  skip.type = 'button';
+  skip.className = 'iv-inline-skip';
+  skip.textContent = 'Skip';
+  skip.addEventListener('click', (e) => { e.stopPropagation(); box.remove(); });
+
+  box.appendChild(dt);
+  box.appendChild(add);
+  box.appendChild(skip);
+  afterRow.insertAdjacentElement('afterend', box);
+  dt.focus();
+}
 
 // ── Export (Markdown, LLM-friendly) ──
 // Markdown keeps the structure readable for both humans and LLMs, so the file

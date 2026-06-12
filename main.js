@@ -428,6 +428,7 @@ ipcMain.handle('save-application', async (_event, appData) => {
 ipcMain.handle('delete-application', async (_event, id) => {
   const db = require('./src/db');
   db.deleteApplication(id);
+  db.deleteInterviewsForApplication(id);
 
   let syncError = null;
   try {
@@ -439,6 +440,27 @@ ipcMain.handle('delete-application', async (_event, id) => {
 
   notifyDataChanged();
   return { syncError };
+});
+
+// ── Interviews ──
+ipcMain.handle('list-interviews', (_event, applicationId) => {
+  return require('./src/db').listInterviews(applicationId);
+});
+
+ipcMain.handle('list-all-interviews', () => {
+  return require('./src/db').listAllInterviews();
+});
+
+ipcMain.handle('save-interview', (_event, data) => {
+  const id = require('./src/db').upsertInterview(data);
+  notifyDataChanged();
+  return { id };
+});
+
+ipcMain.handle('delete-interview', (_event, id) => {
+  require('./src/db').deleteInterview(id);
+  notifyDataChanged();
+  return {};
 });
 
 // Write an export file wherever the user picks. Content is built in the

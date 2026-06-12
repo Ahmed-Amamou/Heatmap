@@ -57,6 +57,23 @@ async function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_applying_date ON applications(applying_date);
+
+    CREATE TABLE IF NOT EXISTS interviews (
+      id             TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL,
+      stage          TEXT,
+      scheduled_at   TEXT,
+      format         TEXT,
+      interviewer    TEXT,
+      notes          TEXT,
+      outcome        TEXT,
+      reminded_day   INTEGER DEFAULT 0,
+      reminded_hour  INTEGER DEFAULT 0,
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_interviews_app ON interviews(application_id);
   `);
 
   persist();
@@ -174,6 +191,103 @@ function deleteApplication(id) {
   persist();
 }
 
+// ── Interviews ──
+// scheduled_at is stored as the datetime-local string 'YYYY-MM-DDTHH:MM'
+// (local time, sorts lexicographically).
+const IV_FIELDS = ['application_id', 'stage', 'scheduled_at', 'format', 'interviewer', 'notes', 'outcome'];
+
+function upsertInterview(data) {
+  const now = new Date().toISOString();
+  const id = data.id || randomUUID();
+  const row = {};
+  for (const f of IV_FIELDS) row[f] = data[f] != null ? String(data[f]) : null;
+  if (!row.outcome) row.outcome = 'upcoming';
+
+  const stmt = db.prepare('SELECT id FROM interviews WHERE id = ?');
+  stmt.bind([id]);
+  const exists = stmt.step();
+  stmt.free();
+
+  if (exists) {
+    const setClause = IV_FIELDS.map((f) => `${f} = ?`).join(', ');
+    // A reschedule re-arms the reminders.
+    db.run(
+      `UPDATE interviews SET ${setClause}, updated_at = ?,
+         reminded_day = CASE WHEN scheduled_at IS NOT ? THEN 0 ELSE reminded_day END,
+         reminded_hour = CASE WHEN scheduled_at IS NOT ? THEN 0 ELSE reminded_hour END
+       WHERE id = ?`,
+      [...IV_FIELDS.map((f) => row[f]), now, row.scheduled_at, row.scheduled_at, id]
+    );
+  } else {
+    db.run(
+      `INSERT INTO interviews (id, ${IV_FIELDS.join(', ')}, created_at, updated_at)
+       VALUES (?, ${IV_FIELDS.map(() => '?').join(', ')}, ?, ?)`,
+      [id, ...IV_FIELDS.map((f) => row[f]), now, now]
+    );
+  }
+  persist();
+  return id;
+}
+
+function listInterviews(applicationId) {
+  const stmt = db.prepare(
+    'SELECT * FROM interviews WHERE application_id = ? ORDER BY scheduled_at ASC, created_at ASC'
+  );
+  stmt.bind([applicationId]);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+function listAllInterviews() {
+  const stmt = db.prepare('SELECT * FROM interviews ORDER BY scheduled_at ASC');
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+// Upcoming interviews joined with their application, soonest first.
+function listUpcoming() {
+  const stmt = db.prepare(
+    `SELECT i.*, a.job_title, a.company
+     FROM interviews i JOIN applications a ON a.id = i.application_id
+     WHERE i.outcome = 'upcoming' AND i.scheduled_at IS NOT NULL AND i.scheduled_at != ''
+     ORDER BY i.scheduled_at ASC`
+  );
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+function getInterview(id) {
+  const stmt = db.prepare('SELECT * FROM interviews WHERE id = ?');
+  stmt.bind([id]);
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+
+function deleteInterview(id) {
+  db.run('DELETE FROM interviews WHERE id = ?', [id]);
+  persist();
+}
+
+function deleteInterviewsForApplication(applicationId) {
+  const ids = listInterviews(applicationId).map((i) => i.id);
+  db.run('DELETE FROM interviews WHERE application_id = ?', [applicationId]);
+  persist();
+  return ids;
+}
+
+function markReminded(id, which) {
+  const col = which === 'hour' ? 'reminded_hour' : 'reminded_day';
+  db.run(`UPDATE interviews SET ${col} = 1 WHERE id = ?`, [id]);
+  persist();
+}
+
 module.exports = {
   initDb,
   getDb,
@@ -183,4 +297,12 @@ module.exports = {
   listApplications,
   getApplication,
   deleteApplication,
+  upsertInterview,
+  listInterviews,
+  listAllInterviews,
+  listUpcoming,
+  getInterview,
+  deleteInterview,
+  deleteInterviewsForApplication,
+  markReminded,
 };

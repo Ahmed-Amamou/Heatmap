@@ -651,6 +651,195 @@ body.resizing {
   margin-left: 4px;
 }
 
+/* ── Interviews ── */
+#interview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.iv-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iv-row input[type="datetime-local"],
+.iv-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.iv-dd {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.iv-dd .dd-control {
+  min-width: 88px;
+  padding: 5px 8px;
+}
+
+.iv-dd .dd-panel {
+  left: 0;
+  right: auto;
+  z-index: 70;
+}
+
+.iv-del {
+  background: transparent;
+  border: none;
+  color: rgba(139, 148, 158, 0.6);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.iv-del:hover {
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.iv-seg {
+  display: flex;
+  gap: 4px;
+}
+
+.iv-seg-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 3px 10px;
+  color: rgba(139, 148, 158, 0.9);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.iv-seg-btn.active.upcoming {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: rgba(88, 166, 255, 0.4);
+  color: #58a6ff;
+}
+
+.iv-seg-btn.active.passed {
+  background: rgba(57, 211, 83, 0.15);
+  border-color: rgba(57, 211, 83, 0.4);
+  color: #39d353;
+}
+
+.iv-seg-btn.active.failed {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: rgba(248, 81, 73, 0.4);
+  color: #f85149;
+}
+
+.iv-add {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px;
+  color: rgba(139, 148, 158, 0.9);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.iv-add:hover {
+  border-color: rgba(88, 166, 255, 0.4);
+  color: #58a6ff;
+}
+
+.iv-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(88, 166, 255, 0.12);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  color: #79b8ff;
+  white-space: nowrap;
+}
+
+.iv-pill.soon {
+  background: rgba(210, 153, 34, 0.15);
+  border-color: rgba(210, 153, 34, 0.4);
+  color: #e3b341;
+}
+
+.iv-pill.overdue {
+  background: rgba(248, 81, 73, 0.12);
+  border-color: rgba(248, 81, 73, 0.35);
+  color: #f85149;
+}
+
+/* Inline "When?" scheduler inside the status panel */
+.iv-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 6px 6px;
+  padding: 6px;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 8px;
+}
+
+.iv-inline input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: #f0f6fc;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+}
+
+.iv-inline-add,
+.iv-inline-skip {
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+}
+
+.iv-inline-add {
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.4);
+  color: #58a6ff;
+}
+
+.iv-inline-skip {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(139, 148, 158, 0.9);
+}
+
 /* ── Multi-select (status) ── */
 .multiselect {
   position: relative;
@@ -818,14 +1007,18 @@ body.resizing {
   color-scheme: dark;
 }
 
-.ed-grid input[type="date"]::-webkit-calendar-picker-indicator {
+.ed-grid input[type="date"]::-webkit-calendar-picker-indicator,
+.ed-grid input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.iv-inline input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
   cursor: pointer;
   opacity: 0.6;
   transition: opacity 0.2s ease;
 }
 
-.ed-grid input[type="date"]::-webkit-calendar-picker-indicator:hover {
+.ed-grid input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.ed-grid input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+.iv-inline input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 
