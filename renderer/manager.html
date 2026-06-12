@@ -28,6 +28,7 @@
       </div>
       <div class="header-actions">
         <input type="search" id="search" placeholder="Search…" spellcheck="false">
+        <button id="btn-agenda" class="btn-secondary" title="Upcoming interviews">Agenda<span id="agenda-count" class="hidden"></span></button>
         <button id="btn-stats" class="btn-secondary" title="Toggle insights">Insights</button>
         <button id="btn-export" class="btn-secondary" title="Export the current view as Markdown (LLM-friendly)">Export ALL</button>
         <button id="btn-new" class="btn-primary">+ New</button>
@@ -42,6 +43,10 @@
     <div id="stats-panel" class="collapsed">
       <div id="metrics"></div>
       <div id="funnel"></div>
+    </div>
+
+    <div id="agenda-panel" class="collapsed">
+      <div id="agenda"></div>
     </div>
 
     <div id="toolbar">

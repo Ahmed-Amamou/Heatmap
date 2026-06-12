@@ -92,6 +92,7 @@ async function loadApplications() {
   rebuildUpcomingByApp();
   buildFilters();
   renderStats();
+  renderAgenda();
   render();
 }
 
@@ -444,7 +445,11 @@ document.getElementById('btn-close-manager').addEventListener('click', closeMana
 document.getElementById('btn-stats').addEventListener('click', () => {
   const collapsed = el('stats-panel').classList.toggle('collapsed');
   el('btn-stats').classList.toggle('active', !collapsed);
-  if (!collapsed) applyFunnelWidths();
+  if (!collapsed) {
+    applyFunnelWidths();
+    el('agenda-panel').classList.add('collapsed');
+    el('btn-agenda').classList.remove('active');
+  }
 });
 
 // ── Sort dropdown ──
@@ -1034,6 +1039,7 @@ async function saveInterviewRecord(iv) {
 async function rebuildAfterInterviewChange() {
   allInterviews = await window.heatmapAPI.listAllInterviews();
   rebuildUpcomingByApp();
+  renderAgenda();
   render();
 }
 
@@ -1231,6 +1237,74 @@ function showInlineScheduler(afterRow, stage) {
   afterRow.insertAdjacentElement('afterend', box);
   dt.focus();
 }
+
+// ── Agenda (upcoming interviews across all applications) ──
+function agendaEntries() {
+  return allInterviews
+    .filter((iv) => iv.outcome === 'upcoming' && iv.scheduled_at)
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+}
+
+function agendaGroup(iv) {
+  const d = parseLocalDt(iv.scheduled_at);
+  if (!d) return 'Later';
+  const now = new Date();
+  if (d.getTime() < now.getTime()) return 'Needs outcome';
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((d.getTime() - today.getTime()) / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  if (days < 7) return 'This week';
+  return 'Later';
+}
+
+function renderAgenda() {
+  const entries = agendaEntries();
+  const badge = el('agenda-count');
+  const dueSoon = entries.filter((iv) => ['Needs outcome', 'Today', 'Tomorrow'].includes(agendaGroup(iv))).length;
+  badge.textContent = dueSoon || '';
+  badge.classList.toggle('hidden', dueSoon === 0);
+
+  const agenda = el('agenda');
+  agenda.innerHTML = '';
+
+  if (entries.length === 0) {
+    agenda.innerHTML = '<div class="agenda-empty">No interviews scheduled. Check a stage in an application’s Status to schedule one.</div>';
+    return;
+  }
+
+  let lastGroup = null;
+  for (const iv of entries) {
+    const group = agendaGroup(iv);
+    if (group !== lastGroup) {
+      lastGroup = group;
+      const h = document.createElement('div');
+      h.className = 'agenda-group' + (group === 'Needs outcome' ? ' overdue' : '');
+      h.textContent = group;
+      agenda.appendChild(h);
+    }
+
+    const app = applications.find((a) => a.id === iv.application_id);
+    const row = document.createElement('div');
+    row.className = 'agenda-row';
+    row.innerHTML = `
+      <span class="agenda-when ${ivTiming(iv)}">${escapeHtml(formatEventShort(iv.scheduled_at))}</span>
+      <span class="agenda-stage">${escapeHtml(iv.stage || 'Interview')}</span>
+      <span class="agenda-app">${escapeHtml([app && app.job_title, app && app.company].filter(Boolean).join(' — ') || 'Unknown application')}</span>
+    `;
+    if (app) row.addEventListener('click', () => openEditor(app));
+    agenda.appendChild(row);
+  }
+}
+
+document.getElementById('btn-agenda').addEventListener('click', () => {
+  const collapsed = el('agenda-panel').classList.toggle('collapsed');
+  el('btn-agenda').classList.toggle('active', !collapsed);
+  if (!collapsed) {
+    el('stats-panel').classList.add('collapsed');
+    el('btn-stats').classList.remove('active');
+  }
+});
 
 // ── Export (Markdown, LLM-friendly) ──
 // Markdown keeps the structure readable for both humans and LLMs, so the file

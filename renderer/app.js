@@ -206,13 +206,39 @@ document.getElementById('btn-pin').addEventListener('click', async () => {
   document.getElementById('btn-pin').classList.toggle('active', pinned);
 });
 
+// ── Next interview line (in the legend row) ──
+function relativeDay(d) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((d.getTime() - today.getTime()) / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return `in ${days}d`;
+}
+
+async function updateNextEvent() {
+  const nextEventEl = document.getElementById('next-event');
+  const iv = await window.heatmapAPI.getNextEvent();
+  if (!iv) {
+    nextEventEl.classList.add('hidden');
+    return;
+  }
+  const d = new Date(iv.scheduled_at);
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const where = iv.company || iv.job_title || '';
+  nextEventEl.textContent = `📅 ${iv.stage || 'Interview'}${where ? ' @ ' + where : ''} · ${relativeDay(d)} ${time}`;
+  nextEventEl.classList.remove('hidden');
+}
+
 // Listen for auto-refresh
 window.heatmapAPI.onDataRefreshed((data) => {
   if (!data.error) {
     renderHeatmap(data);
     onboardingEl.classList.toggle('hidden', Object.keys(data).length > 0);
   }
+  updateNextEvent();
 });
 
 // Initial load
 loadData();
+updateNextEvent();

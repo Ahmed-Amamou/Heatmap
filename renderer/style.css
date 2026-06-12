@@ -361,3 +361,19 @@ body {
 #btn-refresh.spinning {
   animation: spin 0.8s linear infinite;
 }
+
+/* ── Next interview line (legend row, left side) ── */
+#next-event {
+  margin-right: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: #79b8ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+#next-event.hidden {
+  display: none;
+}

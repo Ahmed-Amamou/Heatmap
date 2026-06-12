@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, Notification } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -442,6 +442,56 @@ ipcMain.handle('delete-application', async (_event, id) => {
   return { syncError };
 });
 
+// ── Interview reminders ──
+// Windows toasts at ~24h and ~1h before each upcoming interview. Flags on the
+// interview row prevent repeats; rescheduling re-arms them (see db.js).
+function fmtEventTime(s) {
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function checkInterviewReminders() {
+  if (!Notification.isSupported()) return;
+  const db = require('./src/db');
+  for (const iv of db.listUpcoming()) {
+    const t = new Date(iv.scheduled_at).getTime();
+    if (isNaN(t)) continue;
+    const delta = t - Date.now();
+    if (delta <= 0) continue;
+
+    const what = `${iv.stage || 'Interview'} — ${[iv.job_title, iv.company].filter(Boolean).join(' @ ')}`;
+    if (delta <= 60 * 60 * 1000 && !iv.reminded_hour) {
+      new Notification({
+        title: 'Interview in less than an hour',
+        body: `${what}\n${fmtEventTime(iv.scheduled_at)}`,
+        icon: path.join(__dirname, 'assets', 'icon.ico'),
+      }).show();
+      db.markReminded(iv.id, 'hour');
+    } else if (delta <= 24 * 60 * 60 * 1000 && !iv.reminded_day) {
+      new Notification({
+        title: 'Interview coming up',
+        body: `${what}\n${fmtEventTime(iv.scheduled_at)}`,
+        icon: path.join(__dirname, 'assets', 'icon.ico'),
+      }).show();
+      db.markReminded(iv.id, 'day');
+    }
+  }
+}
+
+// The gadget's "next interview" line: the soonest upcoming one.
+ipcMain.handle('get-next-event', () => {
+  const upcoming = require('./src/db').listUpcoming();
+  const now = Date.now();
+  return upcoming.find((iv) => {
+    const t = new Date(iv.scheduled_at).getTime();
+    return !isNaN(t) && t >= now;
+  }) || null;
+});
+
 // ── Interviews ──
 ipcMain.handle('list-interviews', (_event, applicationId) => {
   return require('./src/db').listInterviews(applicationId);
@@ -518,11 +568,15 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(async () => {
+  // Required for Windows toast notifications from a packaged app.
+  app.setAppUserModelId('com.heatmap.widget');
   initSheets();
   await require('./src/db').initDb();
   createWindow();
   createTray();
   setupAutoUpdater();
+  checkInterviewReminders();
+  setInterval(checkInterviewReminders, 10 * 60 * 1000);
 });
 
 app.on('window-all-closed', () => {

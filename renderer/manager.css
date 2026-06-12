@@ -651,6 +651,108 @@ body.resizing {
   margin-left: 4px;
 }
 
+/* ── Agenda ── */
+#agenda-panel {
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: max-height 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.25s ease;
+  max-height: 260px;
+  opacity: 1;
+  padding: 10px 18px;
+}
+
+#agenda-panel.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-color: transparent;
+}
+
+#agenda {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.agenda-group {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(139, 148, 158, 0.7);
+  margin: 8px 0 4px;
+}
+
+.agenda-group:first-child {
+  margin-top: 0;
+}
+
+.agenda-group.overdue {
+  color: #f85149;
+}
+
+.agenda-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.agenda-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.agenda-when {
+  font-weight: 600;
+  color: #79b8ff;
+  white-space: nowrap;
+  min-width: 96px;
+}
+
+.agenda-when.soon { color: #e3b341; }
+.agenda-when.overdue { color: #f85149; }
+
+.agenda-stage {
+  color: #c9d1d9;
+  white-space: nowrap;
+}
+
+.agenda-app {
+  color: rgba(139, 148, 158, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda-empty {
+  font-size: 12px;
+  color: rgba(139, 148, 158, 0.7);
+  padding: 6px 2px;
+}
+
+#agenda-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(88, 166, 255, 0.2);
+  color: #79b8ff;
+}
+
+#agenda-count.hidden {
+  display: none;
+}
+
 /* ── Interviews ── */
 #interview-list {
   display: flex;
