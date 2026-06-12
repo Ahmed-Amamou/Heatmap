@@ -1030,10 +1030,30 @@ async function ensureAppId() {
   return el('f-id').value || null;
 }
 
-async function saveInterviewRecord(iv) {
-  const { id } = await window.heatmapAPI.saveInterview(iv);
-  iv.id = id;
-  rebuildAfterInterviewChange();
+// Serialized per record so a fast second edit can't race the initial insert
+// into creating a duplicate. Private fields (_save, _deleted) never cross IPC.
+function saveInterviewRecord(iv) {
+  iv._save = (iv._save || Promise.resolve()).then(async () => {
+    if (iv._deleted) return;
+    const payload = {
+      id: iv.id,
+      application_id: iv.application_id,
+      stage: iv.stage,
+      scheduled_at: iv.scheduled_at,
+      format: iv.format,
+      interviewer: iv.interviewer,
+      notes: iv.notes,
+      outcome: iv.outcome,
+    };
+    const { id } = await window.heatmapAPI.saveInterview(payload);
+    iv.id = id;
+    if (iv._deleted) {
+      await window.heatmapAPI.deleteInterview(id); // deleted while the insert was in flight
+      return;
+    }
+    rebuildAfterInterviewChange();
+  });
+  return iv._save;
 }
 
 async function rebuildAfterInterviewChange() {
@@ -1055,11 +1075,12 @@ async function addInterview(stage = '', scheduledAt = '') {
     notes: '',
     outcome: 'upcoming',
   };
-  await saveInterviewRecord(iv);
+  // Show the card instantly; the insert happens in the background.
   if (el('f-id').value === appId) {
     editorInterviews.push(iv);
     renderInterviews();
   }
+  saveInterviewRecord(iv);
   return iv;
 }
 
@@ -1071,8 +1092,14 @@ function miniDropdown(options, value, placeholder, onPick) {
   ctrl.className = 'dd-control';
   ctrl.tabIndex = 0;
   const labEl = document.createElement('span');
+  labEl.className = 'iv-dd-label';
   labEl.textContent = value || placeholder;
   if (!value) labEl.classList.add('ms-placeholder');
+  ctrl.appendChild(labEl);
+  ctrl.insertAdjacentHTML(
+    'beforeend',
+    '<svg class="ms-caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"/></svg>'
+  );
   const panel = document.createElement('div');
   panel.className = 'dd-panel hidden';
 
@@ -1157,6 +1184,7 @@ function renderInterviews() {
     del.textContent = '×';
     del.addEventListener('click', async () => {
       clearTimeout(saveTimer);
+      iv._deleted = true; // a still-in-flight insert will clean itself up
       if (iv.id) await window.heatmapAPI.deleteInterview(iv.id);
       editorInterviews = editorInterviews.filter((x) => x !== iv);
       renderInterviews();

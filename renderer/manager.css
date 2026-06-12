@@ -788,8 +788,24 @@ body.resizing {
 }
 
 .iv-dd .dd-control {
-  min-width: 88px;
+  min-width: 96px;
   padding: 5px 8px;
+}
+
+.iv-dd-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+.iv-dd .ms-placeholder {
+  color: rgba(139, 148, 158, 0.75);
+}
+
+.iv-row input[type="datetime-local"],
+.iv-inline input[type="datetime-local"] {
+  color-scheme: dark; /* native picker + empty-value text render dark-themed */
 }
 
 .iv-dd .dd-panel {
