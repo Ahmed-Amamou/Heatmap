@@ -79,10 +79,13 @@ async function refreshData() {
 
 // Auto-launch on Windows startup. User-controllable from Settings (configs
 // saved before the toggle existed default to on). Skipped for test profiles.
+// Never register from a dev run: there the exe is node_modules' electron.exe,
+// and a startup entry pointing at it makes Windows open the bare Electron
+// welcome window at login. Dev runs instead clear any such stale entry.
 function applyAutoLaunch(config) {
   if (isTestProfile) return;
   app.setLoginItemSettings({
-    openAtLogin: config.autoLaunch !== false,
+    openAtLogin: app.isPackaged && config.autoLaunch !== false,
     path: app.getPath('exe'),
   });
 }
