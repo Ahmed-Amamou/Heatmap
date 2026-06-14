@@ -1530,8 +1530,10 @@ let celebrating = false;
 function celebrateOffer() {
   toast('🎉 Offer — nicely done.');
 
+  // Note: deliberately not gated on prefers-reduced-motion — it's a brief,
+  // user-triggered one-shot, and Windows with animation effects off would
+  // otherwise silently suppress it.
   if (celebrating) return;
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   celebrating = true;
 
   const canvas = document.createElement('canvas');
