@@ -725,6 +725,9 @@ function buildStatusPanel() {
       // Reaching an interview stage usually means one just got scheduled —
       // offer to log it right here.
       if (cb.checked && IV_STAGES.includes(opt)) showInlineScheduler(row, opt);
+      // An offer is worth a moment. Fires only on a genuine click (building the
+      // panel sets .checked directly, which doesn't dispatch 'change').
+      if (cb.checked && opt.toLowerCase().includes('offer')) celebrateOffer();
     });
 
     const span = document.createElement('span');
@@ -1517,6 +1520,123 @@ editorResizer.addEventListener('pointerdown', (e) => {
   editorResizer.addEventListener('pointermove', onMove);
   editorResizer.addEventListener('pointerup', onUp);
 });
+
+// ── Offer celebration ──
+// A low-key fireworks burst, in the app's palette, when an application reaches
+// an Offer. Glow + additive blending keep it on-theme with the glassy UI.
+const OFFER_COLORS = ['#58a6ff', '#79b8ff', '#39d353', '#e3b341', '#bc8cff', '#ffffff'];
+let celebrating = false;
+
+function celebrateOffer() {
+  toast('🎉 Offer — nicely done.');
+
+  if (celebrating) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  celebrating = true;
+
+  const canvas = document.createElement('canvas');
+  canvas.id = 'celebrate-canvas';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = () => window.innerWidth;
+  const H = () => window.innerHeight;
+  canvas.width = W() * dpr;
+  canvas.height = H() * dpr;
+  ctx.scale(dpr, dpr);
+
+  const GRAVITY = 0.05;
+  const rockets = [];
+  const particles = [];
+  const BURSTS = 4;
+  let pending = BURSTS;
+
+  function explode(x, y, color) {
+    const count = 36 + Math.floor(Math.random() * 16);
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.25;
+      const speed = Math.random() * 3.6 + 1.2;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        decay: Math.random() * 0.012 + 0.008,
+        size: Math.random() * 2 + 1.4,
+        color: Math.random() < 0.22 ? '#ffffff' : color,
+      });
+    }
+  }
+
+  // Stagger a few rockets across the upper half of the window.
+  for (let i = 0; i < BURSTS; i++) {
+    setTimeout(() => {
+      pending--;
+      rockets.push({
+        x: W() * (0.18 + Math.random() * 0.64),
+        y: H() + 8,
+        vy: -(Math.random() * 1.6 + 8.5),
+        targetY: H() * (0.18 + Math.random() * 0.28),
+        color: OFFER_COLORS[Math.floor(Math.random() * OFFER_COLORS.length)],
+      });
+    }, i * 300);
+  }
+
+  let frame = 0;
+  const MAX_FRAMES = 60 * 6; // hard safety cap (~6s)
+
+  function tick() {
+    frame++;
+    ctx.clearRect(0, 0, W(), H());
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i];
+      r.y += r.vy;
+      r.vy += GRAVITY * 1.5;
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = r.color;
+      ctx.fillStyle = r.color;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      if (r.y <= r.targetY || r.vy >= 0) {
+        explode(r.x, r.y, r.color);
+        rockets.splice(i, 1);
+      }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += GRAVITY;
+      p.vx *= 0.99;
+      p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = p.color;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = 'source-over';
+
+    if ((pending > 0 || rockets.length || particles.length) && frame < MAX_FRAMES) {
+      requestAnimationFrame(tick);
+    } else {
+      canvas.remove();
+      celebrating = false;
+    }
+  }
+  requestAnimationFrame(tick);
+}
 
 // First data render, then tell main we're ready to be shown — the zoom-open
 // animation starts only after this, over a finished layout.
