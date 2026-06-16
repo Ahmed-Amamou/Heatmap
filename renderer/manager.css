@@ -754,6 +754,67 @@ body.resizing {
 }
 
 /* ── Interviews ── */
+.iv-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.iv-section-title {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(240, 246, 252, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.iv-chevron {
+  color: rgba(139, 148, 158, 0.6);
+  transition: transform 0.2s ease;
+}
+
+.iv-section-toggle.collapsed .iv-chevron {
+  transform: rotate(-90deg);
+}
+
+.iv-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(88, 166, 255, 0.2);
+  color: #79b8ff;
+}
+
+.iv-count-badge.hidden {
+  display: none;
+}
+
+#iv-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+#iv-section-body.collapsed {
+  display: none;
+}
+
 #interview-list {
   display: flex;
   flex-direction: column;

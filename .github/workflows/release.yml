@@ -36,4 +36,5 @@ jobs:
             dist/*.yml
             dist/*.yaml
           draft: false
-          generate_release_notes: true
+          # Release notes are authored explicitly (gh release create) with a
+          # structured changelog, so don't let CI overwrite the body.

@@ -58,7 +58,7 @@ const FIELDS = [
 // match the sheet's free-form status column.
 const STATUS_OPTIONS = [
   'Applied', 'Pre-selected', 'HR Call', 'HR Screen', 'Online Logic test',
-  'Coding test', 'Tech Interview', 'Manager Interview', 'Final Interview',
+  'Online coding Test', 'Tech Interview', 'Manager Interview', 'Final Interview',
   'Offer', 'Rejected',
 ];
 
@@ -973,14 +973,14 @@ attachAutocomplete(el('f-resume_version'), 'resume_version');
 
 // ── Interviews ──
 const IV_STAGES = [
-  'HR Call', 'HR Screen', 'Online Logic test', 'Coding test',
+  'HR Call', 'HR Screen', 'Online Logic test', 'Online coding Test',
   'Tech Interview', 'Manager Interview', 'Final Interview',
 ];
-const IV_FORMATS = ['Video', 'Call', 'On-site'];
+const IV_FORMATS = ['Video', 'Call', 'On-site', 'Online judge'];
 const IV_OUTCOMES = ['upcoming', 'passed', 'failed'];
 const IV_STAGE_SHORT = {
   'HR Call': 'HR', 'HR Screen': 'HR', 'Online Logic test': 'Logic',
-  'Coding test': 'Code', 'Tech Interview': 'Tech',
+  'Online coding Test': 'Code', 'Tech Interview': 'Tech',
   'Manager Interview': 'Mgr', 'Final Interview': 'Final',
 };
 
@@ -1014,10 +1014,23 @@ function ivPillHtml(app) {
   return `<span class="iv-pill ${ivTiming(iv)}" title="${escapeHtml(iv.stage || 'Interview')} — ${escapeHtml(formatEventShort(iv.scheduled_at))}">${escapeHtml(short)} · ${escapeHtml(formatEventShort(iv.scheduled_at))}</span>`;
 }
 
+// Fold state for the editor's Interviews section. Defaults to collapsed so the
+// editor isn't crowded; the header shows a count and clicking it expands.
+function setInterviewsCollapsed(collapsed) {
+  el('iv-section-toggle').classList.toggle('collapsed', collapsed);
+  el('iv-section-toggle').setAttribute('aria-expanded', String(!collapsed));
+  el('iv-section-body').classList.toggle('collapsed', collapsed);
+}
+
+el('iv-section-toggle').addEventListener('click', () => {
+  setInterviewsCollapsed(!el('iv-section-body').classList.contains('collapsed'));
+});
+
 async function loadEditorInterviews(applicationId) {
   editorInterviews = applicationId
     ? await window.heatmapAPI.listInterviews(applicationId)
     : [];
+  setInterviewsCollapsed(true); // always start minimized when opening an application
   renderInterviews();
 }
 
@@ -1081,6 +1094,7 @@ async function addInterview(stage = '', scheduledAt = '') {
   // Show the card instantly; the insert happens in the background.
   if (el('f-id').value === appId) {
     editorInterviews.push(iv);
+    setInterviewsCollapsed(false); // reveal the section so the new card is visible
     renderInterviews();
   }
   saveInterviewRecord(iv);
@@ -1147,6 +1161,10 @@ document.addEventListener('click', (e) => {
 function renderInterviews() {
   const list = el('interview-list');
   list.innerHTML = '';
+
+  const badge = el('iv-count-badge');
+  badge.textContent = editorInterviews.length || '';
+  badge.classList.toggle('hidden', editorInterviews.length === 0);
 
   for (const iv of editorInterviews) {
     const card = document.createElement('div');
