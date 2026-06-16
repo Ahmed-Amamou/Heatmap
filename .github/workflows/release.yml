@@ -23,16 +23,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # --publish never: electron-builder must NOT publish. softprops below is the
+      # single uploader, so latest.yml (path uses the artifactName) always matches
+      # the asset names. Letting electron-builder also publish caused name conflicts.
       - name: Build Windows installer
-        run: npm run dist
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist -- --publish never
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.exe
+            dist/*.exe.blockmap
             dist/*.yml
             dist/*.yaml
           draft: false
