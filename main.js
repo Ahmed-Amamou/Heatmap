@@ -8,9 +8,10 @@ const fs = require('fs');
 // "Electron". Must match the build appId.
 if (process.platform === 'win32') app.setAppUserModelId('com.heatmap.widget');
 
-// Shared window/taskbar icon. Loaded as a nativeImage (not a path string) so it
-// applies reliably even when packaged inside the asar.
-const appIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.ico'));
+// Shared window/taskbar icon path. A plain path string is used (not
+// nativeImage.createFromPath) because createFromPath does NOT read from inside
+// the asar in packaged builds and would yield an empty icon.
+const appIconPath = path.join(__dirname, 'assets', 'icon.ico');
 
 // ── Throwaway test profiles (dev only) ──
 // Simulate a fresh install without touching your real data. This redirects ALL
@@ -170,7 +171,7 @@ function createWindow() {
     skipTaskbar: false,
     show: false,
     paintWhenInitiallyHidden: false,
-    icon: appIcon,
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -216,7 +217,7 @@ function createSettingsWindow() {
     parent: mainWindow,
     modal: true,
     show: false,
-    icon: appIcon,
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -250,7 +251,7 @@ function createManagerWindow(origin) {
     frame: false,
     transparent: true,
     show: false,
-    icon: appIcon,
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -293,11 +294,28 @@ function createManagerWindow(origin) {
   });
 }
 
-function createTray() {
-  tray = new Tray(getTrayIcon());
-  tray.setToolTip('Heatmap');
+let updateReady = false;
 
-  const contextMenu = Menu.buildFromTemplate([
+// Builds the tray menu. When an update is downloaded, a prominent
+// "Update & Restart now" item is added at the top WITHOUT dropping the normal
+// items (the old code replaced the whole menu, hiding Show/Manage/Quit).
+function buildTrayMenu() {
+  const items = [];
+
+  if (updateReady) {
+    items.push(
+      {
+        label: '🟢 Update & Restart now',
+        click: () => {
+          app.isQuitting = true;
+          autoUpdater.quitAndInstall();
+        },
+      },
+      { type: 'separator' }
+    );
+  }
+
+  items.push(
     {
       label: 'Show',
       click: () => {
@@ -322,7 +340,8 @@ function createTray() {
     },
     { type: 'separator' },
     {
-      label: 'Check for Updates',
+      label: updateReady ? 'Update downloaded ✓' : 'Check for Updates',
+      enabled: !updateReady,
       click: () => autoUpdater.checkForUpdatesAndNotify(),
     },
     {
@@ -331,10 +350,16 @@ function createTray() {
         app.isQuitting = true;
         app.quit();
       },
-    },
-  ]);
+    }
+  );
 
-  tray.setContextMenu(contextMenu);
+  return Menu.buildFromTemplate(items);
+}
+
+function createTray() {
+  tray = new Tray(getTrayIcon());
+  tray.setToolTip('Heatmap');
+  tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => {
     if (mainWindow.isVisible()) {
       mainWindow.hide();
@@ -354,19 +379,29 @@ function setupAutoUpdater() {
     mainWindow.webContents.send('update-status', 'Downloading update...');
   });
 
-  autoUpdater.on('update-downloaded', () => {
+  autoUpdater.on('update-downloaded', (info) => {
+    updateReady = true;
     mainWindow.webContents.send('update-status', 'Update ready — restart to apply');
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: 'Restart & Update',
-        click: () => autoUpdater.quitAndInstall(),
-      },
-      {
-        label: 'Later',
-        click: () => {},
-      },
-    ]);
-    tray.setContextMenu(contextMenu);
+    if (tray) {
+      tray.setContextMenu(buildTrayMenu());
+      tray.setToolTip('Heatmap — update ready, restart to apply');
+    }
+
+    // The app closes to the tray and only auto-installs on a full quit, so a
+    // user who never quits would otherwise stay on the old version forever.
+    // A clickable toast makes the ready update visible and one-click to apply.
+    if (Notification.isSupported()) {
+      const n = new Notification({
+        title: 'Heatmap update ready',
+        body: `Version ${info && info.version ? info.version : ''} is ready. Click to restart and update.`.replace('  ', ' '),
+        icon: appIconPath,
+      });
+      n.on('click', () => {
+        app.isQuitting = true;
+        autoUpdater.quitAndInstall();
+      });
+      n.show();
+    }
   });
 
   autoUpdater.on('error', (err) => {
