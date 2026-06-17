@@ -382,6 +382,7 @@ function setupAutoUpdater() {
   autoUpdater.on('update-downloaded', (info) => {
     updateReady = true;
     mainWindow.webContents.send('update-status', 'Update ready — restart to apply');
+    mainWindow.webContents.send('update-ready', { version: info && info.version });
     if (tray) {
       tray.setContextMenu(buildTrayMenu());
       tray.setToolTip('Heatmap — update ready, restart to apply');
@@ -640,6 +641,11 @@ ipcMain.on('minimize-to-tray', () => {
 ipcMain.on('close-app', () => {
   app.isQuitting = true;
   app.quit();
+});
+
+ipcMain.on('install-update', () => {
+  app.isQuitting = true;
+  autoUpdater.quitAndInstall();
 });
 
 app.on('second-instance', () => {

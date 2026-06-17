@@ -230,6 +230,20 @@ async function updateNextEvent() {
   nextEventEl.classList.remove('hidden');
 }
 
+// ── In-window "update ready" banner ──
+const updateBanner = document.getElementById('update-banner');
+window.heatmapAPI.onUpdateReady((info) => {
+  document.getElementById('update-text').textContent =
+    `Update ready${info && info.version ? ` · v${info.version}` : ''}`;
+  updateBanner.classList.remove('hidden');
+});
+document.getElementById('update-restart').addEventListener('click', () => {
+  window.heatmapAPI.installUpdate();
+});
+document.getElementById('update-dismiss').addEventListener('click', () => {
+  updateBanner.classList.add('hidden');
+});
+
 // Listen for auto-refresh
 window.heatmapAPI.onDataRefreshed((data) => {
   if (!data.error) {

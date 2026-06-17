@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('heatmapAPI', {
   onUpdateStatus: (callback) => {
     ipcRenderer.on('update-status', (_event, msg) => callback(msg));
   },
+  onUpdateReady: (callback) => {
+    ipcRenderer.on('update-ready', (_event, info) => callback(info));
+  },
+  installUpdate: () => ipcRenderer.send('install-update'),
   closeApp: () => ipcRenderer.send('close-app'),
   minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
   toggleAlwaysOnTop: () => ipcRenderer.invoke('toggle-always-on-top'),
