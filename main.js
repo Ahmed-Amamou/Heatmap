@@ -3,6 +3,15 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
+// Set as early as possible (before any window) so Windows treats us as a
+// distinct app for taskbar grouping + icon, instead of grouping under
+// "Electron". Must match the build appId.
+if (process.platform === 'win32') app.setAppUserModelId('com.heatmap.widget');
+
+// Shared window/taskbar icon. Loaded as a nativeImage (not a path string) so it
+// applies reliably even when packaged inside the asar.
+const appIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.ico'));
+
 // ── Throwaway test profiles (dev only) ──
 // Simulate a fresh install without touching your real data. This redirects ALL
 // user data (config.json, heatmap.db, credentials.json, window position) to an
@@ -161,7 +170,7 @@ function createWindow() {
     skipTaskbar: false,
     show: false,
     paintWhenInitiallyHidden: false,
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -207,7 +216,7 @@ function createSettingsWindow() {
     parent: mainWindow,
     modal: true,
     show: false,
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -241,7 +250,7 @@ function createManagerWindow(origin) {
     frame: false,
     transparent: true,
     show: false,
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -606,8 +615,6 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(async () => {
-  // Required for Windows toast notifications from a packaged app.
-  app.setAppUserModelId('com.heatmap.widget');
   initSheets();
   await require('./src/db').initDb();
   createWindow();
