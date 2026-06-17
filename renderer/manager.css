@@ -577,6 +577,13 @@ body.resizing {
   background: rgba(139, 148, 158, 0.45);
 }
 
+/* Once the textarea overflows and a scrollbar appears, the bottom-right corner
+   is painted as the scrollbar-corner (not the resizer) and defaults to white.
+   Keep it transparent so the resize grip below stays themed. */
+.ed-grid textarea::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .ed-grid textarea::-webkit-resizer {
   background-color: transparent;
   background-image: linear-gradient(
