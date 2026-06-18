@@ -867,6 +867,28 @@ body.resizing {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* Per-application auto-reject flag (top of the editor) */
+#autoreject-flag {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid rgba(210, 153, 34, 0.28);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e3b341;
+  cursor: default;
+  animation: fadeIn 0.2s ease;
+}
+
+#autoreject-flag svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
 /* ── Interviews ── */
 .iv-section-toggle {
   display: flex;

@@ -296,6 +296,24 @@ el('autoreject-dismiss').addEventListener('click', () => {
   el('autoreject-banner').classList.add('hidden');
 });
 
+// Per-application flag at the top of the editor. Distinct from an actual
+// "Rejected" status — isAutoRejected already excludes apps whose status contains
+// "reject", so this only marks the derived, silence-based case.
+function updateAutoRejectFlag(app) {
+  const flag = el('autoreject-flag');
+  if (!app || !isAutoRejected(app)) {
+    flag.classList.add('hidden');
+    return;
+  }
+  const days = daysSince(app.applying_date);
+  const dayText = days != null ? `${days} days` : `${AUTO_REJECT_DAYS}+ days`;
+  el('autoreject-flag-text').textContent = `Auto-rejected · ${dayText} with no response`;
+  flag.title =
+    `Derived automatically: the status never progressed for ${AUTO_REJECT_DAYS}+ days since you applied. ` +
+    `Your saved status and the Google Sheet are untouched — set a status to override.`;
+  flag.classList.remove('hidden');
+}
+
 // ── Insights ──
 function computeStats() {
   const total = applications.length;
@@ -453,6 +471,7 @@ function openEditor(app) {
   syncStatus.className = 'field-hint';
   editor.classList.remove('hidden');
   el('editor-resizer').classList.remove('hidden');
+  updateAutoRejectFlag(app);
   lastSavedSnapshot = formSnapshot();
   loadEditorInterviews(app ? app.id : null);
   render();

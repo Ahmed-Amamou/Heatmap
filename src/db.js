@@ -101,14 +101,6 @@ function buildRow(appData) {
   return row;
 }
 
-function rowExists(id) {
-  const stmt = db.prepare('SELECT id FROM applications WHERE id = ?');
-  stmt.bind([id]);
-  const found = stmt.step();
-  stmt.free();
-  return found;
-}
-
 // Insert or update a single application. Does NOT persist on its own so callers
 // can batch many writes and flush once.
 function upsertRow(appData) {
@@ -116,7 +108,15 @@ function upsertRow(appData) {
   const id = appData.id || randomUUID();
   const row = buildRow(appData);
 
-  if (rowExists(id)) {
+  const existing = getApplication(id);
+  if (existing) {
+    // Only touch updated_at when a field actually changed. The sheet importer
+    // re-writes every row on each sync, so bumping unconditionally would make
+    // updated_at mean "last import" rather than "last real change" — which is
+    // exactly the signal we need to tell genuine activity from background syncs.
+    const changed = FIELDS.some((f) => (existing[f] ?? null) !== (row[f] ?? null));
+    if (!changed) return id;
+
     const setClause = FIELDS.map((f) => `${f} = ?`).join(', ');
     const params = FIELDS.map((f) => row[f]);
     params.push(now, id);
