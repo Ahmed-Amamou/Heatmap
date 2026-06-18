@@ -378,6 +378,19 @@ body {
   display: none;
 }
 
+/* ── Version label (bottom-left, low-key) ── */
+#app-version {
+  position: absolute;
+  left: 12px;
+  bottom: 5px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: rgba(139, 148, 158, 0.4);
+  pointer-events: none; /* never intercept window dragging */
+  z-index: 2;
+}
+
 /* ── Update-ready banner (in-window, low-key) ── */
 #update-banner {
   display: flex;
@@ -390,6 +403,10 @@ body {
   border-radius: 8px;
   font-size: 11px;
   color: #c9d1d9;
+  /* Lift above #drag-overlay (z-index:1, app-region:drag) so the buttons are
+     clickable — same pattern the titlebar/controls use. */
+  position: relative;
+  z-index: 2;
   animation: update-slide 0.25s ease;
 }
 

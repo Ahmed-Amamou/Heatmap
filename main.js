@@ -429,6 +429,8 @@ ipcMain.handle('get-config', () => {
   return loadConfig();
 });
 
+ipcMain.handle('get-version', () => app.getVersion());
+
 ipcMain.handle('save-config', (_event, config) => {
   saveConfig(config);
   initSheets();

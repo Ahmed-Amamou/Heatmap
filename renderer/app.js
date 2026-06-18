@@ -253,6 +253,11 @@ window.heatmapAPI.onDataRefreshed((data) => {
   updateNextEvent();
 });
 
+// Low-key version label (bottom-left)
+window.heatmapAPI.getVersion().then((v) => {
+  if (v) document.getElementById('app-version').textContent = `v${v}`;
+});
+
 // Initial load
 loadData();
 updateNextEvent();

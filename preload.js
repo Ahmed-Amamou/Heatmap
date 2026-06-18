@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('heatmapAPI', {
   openSettings: () => ipcRenderer.send('open-settings'),
   closeSettings: () => ipcRenderer.send('close-settings'),
   getConfig: () => ipcRenderer.invoke('get-config'),
+  getVersion: () => ipcRenderer.invoke('get-version'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
   pickCredentialsFile: () => ipcRenderer.invoke('pick-credentials-file'),
   openManager: (origin) => ipcRenderer.send('open-manager', origin),
