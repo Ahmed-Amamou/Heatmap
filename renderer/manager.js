@@ -93,6 +93,7 @@ async function loadApplications() {
   buildFilters();
   renderStats();
   renderAgenda();
+  renderAutoRejectBanner();
   render();
 }
 
@@ -258,12 +259,42 @@ function outcomeOf(app) {
 }
 
 // Stale = still just "applied", no response, old enough to chase, but not yet
-// past the auto-reject threshold.
+// past the auto-reject threshold. Only nudge when there's actually a contact to
+// reach out to — a follow-up with no one to follow up with is just noise.
 function needsFollowup(app) {
   if (outcomeOf(app) !== 'active') return false;
+  if (!app.contact || !String(app.contact).trim()) return false;
   const days = daysSince(app.applying_date);
   return days != null && days >= STALE_DAYS;
 }
+
+// ── Auto-reject banner ──
+// Surfaces how many applications were treated as rejected purely from silence
+// past the threshold (derived only — stored status and the sheet are untouched).
+// Low-key and dismissible for the session.
+let autoRejectDismissed = false;
+
+function renderAutoRejectBanner() {
+  const banner = el('autoreject-banner');
+  const count = applications.filter(isAutoRejected).length;
+  if (count === 0 || autoRejectDismissed) {
+    banner.classList.add('hidden');
+    return;
+  }
+  el('autoreject-text').textContent =
+    `${count} application${count === 1 ? '' : 's'} auto-marked rejected after ${AUTO_REJECT_DAYS} days of no response.`;
+  banner.classList.remove('hidden');
+}
+
+el('autoreject-view').addEventListener('click', () => {
+  currentFilter = 'rejected';
+  render();
+});
+
+el('autoreject-dismiss').addEventListener('click', () => {
+  autoRejectDismissed = true;
+  el('autoreject-banner').classList.add('hidden');
+});
 
 // ── Insights ──
 function computeStats() {
