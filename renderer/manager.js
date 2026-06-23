@@ -271,18 +271,36 @@ function needsFollowup(app) {
 // ── Auto-reject banner ──
 // Surfaces how many applications were treated as rejected purely from silence
 // past the threshold (derived only — stored status and the sheet are untouched).
-// Low-key and dismissible for the session.
-let autoRejectDismissed = false;
+// Only nags when there's something new: the acknowledged count is persisted, so
+// dismissing sticks across window opens and the banner reappears only once a
+// meaningful number of additional applications have gone silent.
+const AUTO_REJECT_NOTIFY_STEP = 3; // new auto-rejections needed to re-show after dismiss
+let autoRejectCount = 0;
 
 function renderAutoRejectBanner() {
   const banner = el('autoreject-banner');
-  const count = applications.filter(isAutoRejected).length;
-  if (count === 0 || autoRejectDismissed) {
+  autoRejectCount = applications.filter(isAutoRejected).length;
+
+  const ackRaw = localStorage.getItem('autoRejectAck');
+  let ack = ackRaw == null ? null : Number(ackRaw);
+
+  // If some were resolved (count dropped below what was acknowledged), lower the
+  // baseline so a later rise re-triggers correctly.
+  if (ack != null && autoRejectCount < ack) {
+    ack = autoRejectCount;
+    localStorage.setItem('autoRejectAck', String(ack));
+  }
+
+  // First time: show for any auto-rejection. After a dismissal at N: only show
+  // again once the count reaches N + step.
+  const threshold = ack == null ? 1 : ack + AUTO_REJECT_NOTIFY_STEP;
+  if (autoRejectCount < threshold) {
     banner.classList.add('hidden');
     return;
   }
+
   el('autoreject-text').textContent =
-    `${count} application${count === 1 ? '' : 's'} auto-marked rejected after ${AUTO_REJECT_DAYS} days of no response.`;
+    `${autoRejectCount} application${autoRejectCount === 1 ? '' : 's'} auto-marked rejected after ${AUTO_REJECT_DAYS} days of no response.`;
   banner.classList.remove('hidden');
 }
 
@@ -292,7 +310,7 @@ el('autoreject-view').addEventListener('click', () => {
 });
 
 el('autoreject-dismiss').addEventListener('click', () => {
-  autoRejectDismissed = true;
+  localStorage.setItem('autoRejectAck', String(autoRejectCount));
   el('autoreject-banner').classList.add('hidden');
 });
 
