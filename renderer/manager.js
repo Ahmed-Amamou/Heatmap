@@ -458,7 +458,7 @@ function sortList(list) {
 
 // ── Toast ──
 let toastTimer;
-function toast(message, isError = false) {
+function toast(message, isError = false, duration = 2600) {
   const t = el('toast');
   t.textContent = message;
   t.classList.toggle('error', isError);
@@ -466,7 +466,7 @@ function toast(message, isError = false) {
   void t.offsetWidth; // reflow so the transition replays
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  toastTimer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
 function openEditor(app) {
@@ -796,6 +796,8 @@ function buildStatusPanel() {
       // An offer is worth a moment. Fires only on a genuine click (building the
       // panel sets .checked directly, which doesn't dispatch 'change').
       if (cb.checked && opt.toLowerCase().includes('offer')) celebrateOffer();
+      // A rejection deserves a kind word. Same genuine-click guard.
+      if (cb.checked && opt.toLowerCase().includes('reject')) encourageAfterRejection();
     });
 
     const span = document.createElement('span');
@@ -1724,6 +1726,40 @@ function celebrateOffer() {
     }
   }
   requestAnimationFrame(tick);
+}
+
+// ── Rejection encouragement ──
+// Job hunting is brutal; a rejection deserves a kind word, not silence. Phrases
+// are shown in a rotating order (persisted index) so you don't get the same one
+// twice until you've cycled through all of them.
+const REJECTION_PHRASES = [
+  'Their loss — on to the next one. 💪',
+  'Rejection is redirection. Something better is lining up.',
+  'Every "no" gets you closer to the right "yes".',
+  'You put yourself out there. That already takes guts.',
+  'Not a fit ≠ not good enough. Keep going.',
+  'One door closes, plenty more are still open.',
+  'This one wasn\'t yours. The right one will be.',
+  'Plot twist: your best offer hasn\'t shown up yet.',
+  'Shake it off — your next application is waiting.',
+  'Even the best get rejected. You\'re in great company.',
+  'Their timing, not your worth.',
+  'Onwards. Momentum beats perfection.',
+  'A "no" today is just a story you\'ll tell later.',
+  'Still in the game. Keep swinging.',
+  'Rejections are reps — you\'re getting stronger.',
+  'The right team will be lucky to have you.',
+  'Dust off, refocus, reapply. You\'ve got this.',
+  'It\'s a numbers game. Keep stacking applications.',
+  'Closer than you think. Don\'t stop now.',
+  'Proud of you for showing up and trying.',
+];
+
+function encourageAfterRejection() {
+  const len = REJECTION_PHRASES.length;
+  const i = (Number(localStorage.getItem('rejectPhraseIndex')) || 0) % len;
+  localStorage.setItem('rejectPhraseIndex', String((i + 1) % len));
+  toast(REJECTION_PHRASES[i], false, 4200);
 }
 
 // First data render, then tell main we're ready to be shown — the zoom-open
