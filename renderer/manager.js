@@ -546,6 +546,7 @@ function openEditor(app) {
   closeStatusPanel();
   setJobType(app && app.job_type != null ? app.job_type : '');
   closeJobTypePanel();
+  applyingDatePicker.setValue(app && app.applying_date ? app.applying_date : '');
 
   deleteBtn.classList.toggle('hidden', !app);
   el('btn-export-one').classList.toggle('hidden', !app);
@@ -1107,6 +1108,15 @@ attachAutocomplete(el('f-company'), 'company');
 attachAutocomplete(el('f-location'), 'location');
 attachAutocomplete(el('f-resume_version'), 'resume_version');
 
+// Applying Date uses the same themed picker (date-only). It syncs the hidden
+// #f-applying_date input so the existing form/autosave machinery is unchanged.
+const applyingDatePicker = createDateTimePicker(
+  '',
+  (val) => { el('f-applying_date').value = val; scheduleAutosave(); },
+  { dateOnly: true }
+);
+el('applying-date-mount').appendChild(applyingDatePicker.element);
+
 // ── Interviews ──
 const IV_STAGES = [
   'HR Call', 'HR Screen', 'Online Logic test', 'Online coding Test',
@@ -1303,7 +1313,8 @@ document.addEventListener('click', (e) => {
 const DT_WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 let openDtPicker = null; // only one open at a time
 
-function createDateTimePicker(initialValue, onChange) {
+function createDateTimePicker(initialValue, onChange, opts = {}) {
+  const dateOnly = !!opts.dateOnly; // 'YYYY-MM-DD' instead of 'YYYY-MM-DDTHH:MM'
   let value = initialValue || '';
   let view = startMonth(value); // {y, m} currently shown
   let panel = null;
@@ -1313,7 +1324,12 @@ function createDateTimePicker(initialValue, onChange) {
   field.className = 'dt-field';
 
   function parse(v) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v || '');
+    if (!v) return null;
+    if (dateOnly) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+      return m ? { y: +m[1], mo: +m[2] - 1, d: +m[3], h: 0, mi: 0 } : null;
+    }
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
     return m ? { y: +m[1], mo: +m[2] - 1, d: +m[3], h: +m[4], mi: +m[5] } : null;
   }
   function startMonth(v) {
@@ -1323,7 +1339,9 @@ function createDateTimePicker(initialValue, onChange) {
   }
   function compose(y, mo, d, h, mi) {
     const p = (n) => String(n).padStart(2, '0');
-    return `${y}-${p(mo + 1)}-${p(d)}T${p(h)}:${p(mi)}`;
+    return dateOnly
+      ? `${y}-${p(mo + 1)}-${p(d)}`
+      : `${y}-${p(mo + 1)}-${p(d)}T${p(h)}:${p(mi)}`;
   }
 
   function renderField() {
@@ -1332,10 +1350,12 @@ function createDateTimePicker(initialValue, onChange) {
     const label = document.createElement('span');
     if (p) {
       label.className = 'dt-value';
-      label.textContent = `${p.d} ${MONTHS_ABBR[p.mo]} ${p.y} · ${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}`;
+      label.textContent = dateOnly
+        ? `${p.d} ${MONTHS_ABBR[p.mo]} ${p.y}`
+        : `${p.d} ${MONTHS_ABBR[p.mo]} ${p.y} · ${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}`;
     } else {
       label.className = 'dt-placeholder';
-      label.textContent = 'Set date & time…';
+      label.textContent = dateOnly ? 'Select date…' : 'Set date & time…';
     }
     field.appendChild(label);
     field.insertAdjacentHTML('beforeend',
@@ -1428,7 +1448,8 @@ function createDateTimePicker(initialValue, onChange) {
       cell.addEventListener('click', () => {
         const t = parse(value) || { h: 9, mi: 0 };
         setValue(compose(view.y, view.m, d, t.h, t.mi), true);
-        rebuild();
+        if (dateOnly) close(); // no time to set — picking a day is the whole job
+        else rebuild();
       });
       grid.appendChild(cell);
     }
@@ -1440,7 +1461,7 @@ function createDateTimePicker(initialValue, onChange) {
     if (!panel) return;
     panel.innerHTML = '';
     panel.appendChild(buildCalendar());
-    panel.appendChild(buildTime(parse(value)));
+    if (!dateOnly) panel.appendChild(buildTime(parse(value)));
 
     const foot = document.createElement('div');
     foot.className = 'dt-foot';

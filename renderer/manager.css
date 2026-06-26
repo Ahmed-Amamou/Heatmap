@@ -749,8 +749,7 @@ body.resizing {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -761,6 +760,14 @@ body.resizing {
   cursor: pointer;
   text-align: left;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* In the interview rows the field shares a flex row with other controls. */
+.iv-row .dt-field,
+.iv-inline .dt-field {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .dt-field.open,
