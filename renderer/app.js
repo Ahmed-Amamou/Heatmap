@@ -6,8 +6,35 @@ const loadingEl = document.getElementById('loading');
 const errorEl = document.getElementById('error');
 const onboardingEl = document.getElementById('onboarding');
 
-const WEEKS_TO_SHOW = 18;
+// Weeks of history + weeks ahead (so upcoming interviews are visible roughly a
+// month out). Total columns must fit the fixed-width widget.
+const WEEKS_PAST = 16;
+const WEEKS_FUTURE = 5;
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// date key 'YYYY-MM-DD' → array of interviews (joined with application) on that day.
+let interviewsByDate = {};
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function loadInterviews() {
+  try {
+    const list = await window.heatmapAPI.getCalendarInterviews();
+    interviewsByDate = {};
+    for (const iv of list) {
+      const key = String(iv.scheduled_at).slice(0, 10);
+      (interviewsByDate[key] = interviewsByDate[key] || []).push(iv);
+    }
+  } catch {
+    interviewsByDate = {};
+  }
+}
 
 function getLevel(count) {
   if (count === 0) return 0;
@@ -58,8 +85,11 @@ function renderHeatmap(dateCounts) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Sunday of the week WEEKS_PAST weeks ago; the grid then runs forward through
+  // the current week and WEEKS_FUTURE weeks beyond it.
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - (WEEKS_TO_SHOW * 7) + (7 - today.getDay()));
+  startDate.setDate(today.getDate() - today.getDay() - WEEKS_PAST * 7);
+  const totalWeeks = WEEKS_PAST + WEEKS_FUTURE + 1;
 
   const totalApps = Object.values(dateCounts).reduce((sum, c) => sum + c, 0);
   const streak = calculateStreak(dateCounts);
@@ -70,7 +100,7 @@ function renderHeatmap(dateCounts) {
   const cellWidth = 16;
   let cellIndex = 0;
 
-  for (let week = 0; week < WEEKS_TO_SHOW; week++) {
+  for (let week = 0; week < totalWeeks; week++) {
     const weekEl = document.createElement('div');
     weekEl.className = 'week';
 
@@ -81,29 +111,39 @@ function renderHeatmap(dateCounts) {
       const dayEl = document.createElement('div');
       dayEl.className = 'day';
 
-      if (currentDate > today) {
-        dayEl.classList.add('empty');
-        weekEl.appendChild(dayEl);
-        continue;
-      }
-
       const key = dateToKey(currentDate);
-      const count = dateCounts[key] || 0;
-      const level = getLevel(count);
+      const isFuture = currentDate > today;
+      const count = isFuture ? 0 : (dateCounts[key] || 0);
+      const ivs = interviewsByDate[key] || [];
 
-      dayEl.setAttribute('data-level', level);
+      dayEl.setAttribute('data-level', getLevel(count));
       dayEl.setAttribute('data-date', key);
       dayEl.setAttribute('data-count', count);
+      if (isFuture) dayEl.classList.add('future');
+      if (key === dateToKey(today)) dayEl.classList.add('is-today');
+
+      if (ivs.length) {
+        dayEl.classList.add('has-interview');
+        if (ivs.length > 1) dayEl.setAttribute('data-iv-count', ivs.length);
+      }
 
       // Staggered entrance animation
       dayEl.classList.add('animate-in');
       dayEl.style.animationDelay = `${cellIndex * 3}ms`;
       cellIndex++;
 
-      // Tooltip events
       const dateCopy = new Date(currentDate);
       dayEl.addEventListener('mouseenter', (e) => showTooltip(e, dateCopy, count));
       dayEl.addEventListener('mouseleave', hideTooltip);
+
+      // Clicking a day with interview(s) opens that application's editor.
+      if (ivs.length) {
+        dayEl.addEventListener('click', (e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const origin = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+          window.heatmapAPI.openManager(origin, ivs[0].application_id);
+        });
+      }
 
       weekEl.appendChild(dayEl);
 
@@ -125,14 +165,35 @@ function renderHeatmap(dateCounts) {
 }
 
 function showTooltip(event, date, count) {
-  const appText = count === 1 ? '1 application' : `${count} applications`;
-  tooltipEl.innerHTML = `<span class="count">${appText}</span> <span class="date">on ${formatDate(date)}</span>`;
+  const ivs = interviewsByDate[dateToKey(date)] || [];
+  let html = '';
+
+  if (ivs.length) {
+    html += '<div class="tip-ivs">';
+    for (const iv of ivs) {
+      const time = String(iv.scheduled_at).slice(11, 16);
+      const who = iv.company || iv.job_title || '';
+      const done = iv.outcome && iv.outcome !== 'upcoming';
+      html += `<div class="tip-iv${done ? ' done' : ''}">`
+        + '<span class="tip-dot"></span>'
+        + `<span class="tip-iv-text">${escapeHtml(iv.stage || 'Interview')}${who ? ' · ' + escapeHtml(who) : ''}</span>`
+        + `<span class="tip-time">${time}</span></div>`;
+    }
+    html += '</div>';
+  }
+
+  const appText = count > 0 ? `${count} application${count === 1 ? '' : 's'} · ` : '';
+  html += `<div class="tip-foot">${appText}${formatDate(date)}${ivs.length ? ' · click to open' : ''}</div>`;
+
+  tooltipEl.innerHTML = html;
   tooltipEl.classList.remove('hidden');
 
   const rect = event.target.getBoundingClientRect();
   const widgetRect = document.getElementById('widget').getBoundingClientRect();
 
-  tooltipEl.style.left = `${rect.left - widgetRect.left + rect.width / 2 - tooltipEl.offsetWidth / 2}px`;
+  let left = rect.left - widgetRect.left + rect.width / 2 - tooltipEl.offsetWidth / 2;
+  left = Math.max(4, Math.min(left, widgetRect.width - tooltipEl.offsetWidth - 4));
+  tooltipEl.style.left = `${left}px`;
   tooltipEl.style.top = `${rect.top - widgetRect.top - tooltipEl.offsetHeight - 8}px`;
 }
 
@@ -148,7 +209,7 @@ async function loadData() {
   onboardingEl.classList.add('hidden');
 
   try {
-    const data = await window.heatmapAPI.fetchData();
+    const [data] = await Promise.all([window.heatmapAPI.fetchData(), loadInterviews()]);
 
     if (data.error) {
       throw new Error(data.error);
@@ -247,8 +308,10 @@ document.getElementById('update-dismiss').addEventListener('click', () => {
 // Listen for auto-refresh
 window.heatmapAPI.onDataRefreshed((data) => {
   if (!data.error) {
-    renderHeatmap(data);
-    onboardingEl.classList.toggle('hidden', Object.keys(data).length > 0);
+    loadInterviews().then(() => {
+      renderHeatmap(data);
+      onboardingEl.classList.toggle('hidden', Object.keys(data).length > 0);
+    });
   }
   updateNextEvent();
 });
