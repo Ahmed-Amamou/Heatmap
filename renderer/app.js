@@ -9,7 +9,7 @@ const onboardingEl = document.getElementById('onboarding');
 // Weeks of history + weeks ahead (so upcoming interviews are visible roughly a
 // month out). Total columns must fit the fixed-width widget.
 const WEEKS_PAST = 16;
-const WEEKS_FUTURE = 5;
+const WEEKS_FUTURE = 2;
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // date key 'YYYY-MM-DD' → array of interviews (joined with application) on that day.
