@@ -36,5 +36,6 @@ contextBridge.exposeInMainWorld('heatmapAPI', {
   saveInterview: (data) => ipcRenderer.invoke('save-interview', data),
   deleteInterview: (id) => ipcRenderer.invoke('delete-interview', id),
   getNextEvent: () => ipcRenderer.invoke('get-next-event'),
+  getCalendarInterviews: () => ipcRenderer.invoke('get-calendar-interviews'),
   exportFile: (payload) => ipcRenderer.invoke('export-file', payload),
 });

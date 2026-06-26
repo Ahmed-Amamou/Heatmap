@@ -543,6 +543,11 @@ ipcMain.handle('get-next-event', () => {
   }) || null;
 });
 
+// All scheduled interviews (with their application) for the heatmap markers.
+ipcMain.handle('get-calendar-interviews', () => {
+  return require('./src/db').listInterviewsForCalendar();
+});
+
 // ── Interviews ──
 ipcMain.handle('list-interviews', (_event, applicationId) => {
   return require('./src/db').listInterviews(applicationId);

@@ -262,6 +262,23 @@ function listUpcoming() {
   return rows;
 }
 
+// All scheduled interviews joined with their application, for the widget's
+// heatmap markers (past and future). Includes outcome so the widget can style
+// upcoming vs done differently if needed.
+function listInterviewsForCalendar() {
+  const stmt = db.prepare(
+    `SELECT i.id, i.application_id, i.stage, i.scheduled_at, i.format, i.outcome,
+            a.job_title, a.company
+     FROM interviews i JOIN applications a ON a.id = i.application_id
+     WHERE i.scheduled_at IS NOT NULL AND i.scheduled_at != ''
+     ORDER BY i.scheduled_at ASC`
+  );
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
 function getInterview(id) {
   const stmt = db.prepare('SELECT * FROM interviews WHERE id = ?');
   stmt.bind([id]);
@@ -301,6 +318,7 @@ module.exports = {
   listInterviews,
   listAllInterviews,
   listUpcoming,
+  listInterviewsForCalendar,
   getInterview,
   deleteInterview,
   deleteInterviewsForApplication,
