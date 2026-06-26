@@ -236,10 +236,11 @@ function createSettingsWindow() {
   });
 }
 
-function createManagerWindow(origin) {
+function createManagerWindow(origin, appId) {
   if (managerWindow) {
     managerWindow.show();
     managerWindow.focus();
+    if (appId) managerWindow.webContents.send('focus-application', appId);
     return;
   }
 
@@ -270,6 +271,7 @@ function createManagerWindow(origin) {
     query.ox = (((gb.x + origin.x - mb.x) / mb.width) * 100).toFixed(2);
     query.oy = (((gb.y + origin.y - mb.y) / mb.height) * 100).toFixed(2);
   }
+  if (appId) query.app = appId; // open this application's editor once loaded
 
   managerWindow.loadFile(path.join(__dirname, 'renderer', 'manager.html'), { query });
 
@@ -625,8 +627,8 @@ function notifyDataChanged() {
   if (mainWindow) mainWindow.webContents.send('data-refreshed', counts);
 }
 
-ipcMain.on('open-manager', (_event, origin) => {
-  createManagerWindow(origin);
+ipcMain.on('open-manager', (_event, origin, appId) => {
+  createManagerWindow(origin, appId);
 });
 
 ipcMain.on('close-manager', () => {

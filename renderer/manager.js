@@ -2064,8 +2064,21 @@ function encourageAfterRejection() {
   toast(REJECTION_PHRASES[i], false, 4200);
 }
 
+// Open a specific application's editor by id (from a widget heatmap click).
+function focusApplication(id) {
+  if (!id) return;
+  const app = applications.find((a) => a.id === id);
+  if (app) openEditor(app);
+}
+
+// Requested while the manager is already open.
+window.heatmapAPI.onFocusApplication((id) => focusApplication(id));
+
 // First data render, then tell main we're ready to be shown — the zoom-open
-// animation starts only after this, over a finished layout.
+// animation starts only after this, over a finished layout. If the manager was
+// opened targeting an application (?app=…), open its editor.
+const focusAppId = new URLSearchParams(location.search).get('app');
 loadApplications().finally(() => {
+  if (focusAppId) focusApplication(focusAppId);
   requestAnimationFrame(() => window.heatmapAPI.managerReady());
 });
