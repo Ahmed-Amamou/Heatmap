@@ -155,10 +155,17 @@ function render() {
 
     tr.innerHTML = `
       <td class="title-cell">${escapeHtml(app.job_title) || '—'}</td>
+      <td class="jobtype-cell">${app.job_type ? `<span class="jobtype-tag">${escapeHtml(app.job_type)}</span>` : '—'}</td>
       <td>${escapeHtml(app.company) || '—'}</td>
       <td>${escapeHtml(formatDisplayDate(app.applying_date)) || '—'}${followup}${ivPillHtml(app)}</td>
-      <td>${renderStatusPills(app)}</td>
+      <td class="status-cell">${renderStatusPills(app)}</td>
     `;
+    const parts = splitStatus(app.status);
+    const auto = isAutoRejected(app);
+    if ((auto && parts.length >= 1) || (!auto && parts.length > 1)) {
+      attachStatusTooltip(tr.querySelector('.status-cell'), parts, auto);
+    }
+
     tr.addEventListener('click', () => openEditor(app));
     tbody.appendChild(tr);
   }
@@ -208,6 +215,63 @@ function renderStatusPills(app) {
 
   const extra = parts.length > 1 ? `<span class="pill-extra">+${parts.length - 1}</span>` : '';
   return `<span class="${cls}">${escapeHtml(last)}</span>${extra}`;
+}
+
+// Hovering a status cell reveals the full stage history in a themed popover
+// (body-appended + fixed-positioned so the table's scroll never clips it).
+let statusTipEl = null;
+function getStatusTip() {
+  if (!statusTipEl) {
+    statusTipEl = document.createElement('div');
+    statusTipEl.className = 'status-tip hidden';
+    document.body.appendChild(statusTipEl);
+  }
+  return statusTipEl;
+}
+
+function statusPillClass(s) {
+  if (/reject/i.test(s)) return 'status-pill pill-rejected';
+  if (/offer/i.test(s)) return 'status-pill pill-offer';
+  return 'status-pill';
+}
+
+function attachStatusTooltip(cell, parts, autoRejected) {
+  if (!cell) return;
+  cell.classList.add('has-status-tip');
+
+  cell.addEventListener('mouseenter', () => {
+    const tip = getStatusTip();
+    tip.innerHTML = '';
+    if (autoRejected) {
+      const note = document.createElement('div');
+      note.className = 'status-tip-note';
+      note.textContent = `Auto-rejected · ${AUTO_REJECT_DAYS}+ days silent`;
+      tip.appendChild(note);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'status-tip-pills';
+    parts.forEach((s, i) => {
+      const pill = document.createElement('span');
+      pill.className = statusPillClass(s) + (i === parts.length - 1 ? ' is-latest' : '');
+      pill.textContent = s;
+      wrap.appendChild(pill);
+    });
+    tip.appendChild(wrap);
+
+    tip.classList.remove('hidden');
+    const r = cell.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    let top = r.top - t.height - 6;
+    if (top < 6) top = r.bottom + 6; // flip below if no room above
+    let left = Math.max(6, r.left);
+    if (left + t.width > window.innerWidth - 6) left = window.innerWidth - t.width - 6;
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  });
+
+  cell.addEventListener('mouseleave', () => {
+    if (statusTipEl) statusTipEl.classList.add('hidden');
+  });
 }
 
 // ── Outcome derivation ──
@@ -864,7 +928,9 @@ statusControl.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('click', (e) => {
-  if (!statusMs.contains(e.target)) closeStatusPanel();
+  // Keep open while interacting with a body-appended date picker (used by the
+  // inline scheduler that lives inside this panel).
+  if (!statusMs.contains(e.target) && !e.target.closest('.dt-panel')) closeStatusPanel();
 });
 
 buildStatusPanel();
@@ -1228,6 +1294,217 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ── Custom date & time picker ──
+// Replaces the native, OS-themed datetime-local input with a calendar + time
+// stepper that matches the app. Value format matches datetime-local:
+// 'YYYY-MM-DDTHH:MM' (or '' for empty). Returns { element, value (getter),
+// setValue }. The panel is body-appended + fixed-positioned so it's never
+// clipped, whether used in an interview card or the inline status scheduler.
+const DT_WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+let openDtPicker = null; // only one open at a time
+
+function createDateTimePicker(initialValue, onChange) {
+  let value = initialValue || '';
+  let view = startMonth(value); // {y, m} currently shown
+  let panel = null;
+
+  const field = document.createElement('button');
+  field.type = 'button';
+  field.className = 'dt-field';
+
+  function parse(v) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v || '');
+    return m ? { y: +m[1], mo: +m[2] - 1, d: +m[3], h: +m[4], mi: +m[5] } : null;
+  }
+  function startMonth(v) {
+    const p = parse(v);
+    const now = new Date();
+    return p ? { y: p.y, m: p.mo } : { y: now.getFullYear(), m: now.getMonth() };
+  }
+  function compose(y, mo, d, h, mi) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${y}-${p(mo + 1)}-${p(d)}T${p(h)}:${p(mi)}`;
+  }
+
+  function renderField() {
+    const p = parse(value);
+    field.innerHTML = '';
+    const label = document.createElement('span');
+    if (p) {
+      label.className = 'dt-value';
+      label.textContent = `${p.d} ${MONTHS_ABBR[p.mo]} ${p.y} · ${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}`;
+    } else {
+      label.className = 'dt-placeholder';
+      label.textContent = 'Set date & time…';
+    }
+    field.appendChild(label);
+    field.insertAdjacentHTML('beforeend',
+      '<svg class="dt-cal-icon" width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h.25A2.75 2.75 0 0 1 15 4.75v8.5A2.75 2.75 0 0 1 12.25 16H3.75A2.75 2.75 0 0 1 1 13.25v-8.5A2.75 2.75 0 0 1 3.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 6.5v6.75c0 .69.56 1.25 1.25 1.25h8.5c.69 0 1.25-.56 1.25-1.25V6.5h-11Z"/></svg>');
+  }
+
+  function setValue(v, fire) {
+    value = v || '';
+    renderField();
+    if (fire) onChange(value);
+  }
+
+  function buildTime(p) {
+    const timeRow = document.createElement('div');
+    timeRow.className = 'dt-time';
+
+    const make = (val, max, onSet) => {
+      const cell = document.createElement('div');
+      cell.className = 'dt-spin';
+      const up = document.createElement('button');
+      up.type = 'button'; up.className = 'dt-spin-btn'; up.textContent = '▲';
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.inputMode = 'numeric'; inp.className = 'dt-spin-val';
+      inp.value = String(val).padStart(2, '0');
+      const down = document.createElement('button');
+      down.type = 'button'; down.className = 'dt-spin-btn'; down.textContent = '▼';
+      const clamp = (n) => ((n % (max + 1)) + (max + 1)) % (max + 1);
+      const commit = (n) => { const c = clamp(n); inp.value = String(c).padStart(2, '0'); onSet(c); };
+      up.addEventListener('click', () => commit(parseInt(inp.value, 10) + 1 || 0));
+      down.addEventListener('click', () => commit((parseInt(inp.value, 10) || 0) - 1));
+      inp.addEventListener('change', () => commit(parseInt(inp.value, 10) || 0));
+      inp.addEventListener('wheel', (e) => { e.preventDefault(); commit((parseInt(inp.value, 10) || 0) + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
+      cell.append(up, inp, down);
+      return cell;
+    };
+
+    const cur = () => parse(value) || { y: view.y, mo: view.m, d: new Date().getDate(), h: 9, mi: 0 };
+    const setTime = (h, mi) => {
+      const c = cur();
+      setValue(compose(c.y, c.mo, c.d, h, mi), true);
+    };
+    timeRow.appendChild(document.createElement('span')).className = 'dt-time-label';
+    timeRow.lastChild.textContent = 'Time';
+    const hCell = make(p ? p.h : 9, 23, (h) => setTime(h, (parse(value) || { mi: 0 }).mi));
+    const sep = document.createElement('span'); sep.className = 'dt-colon'; sep.textContent = ':';
+    const mCell = make(p ? p.mi : 0, 59, (mi) => setTime((parse(value) || { h: 9 }).h, mi));
+    timeRow.append(hCell, sep, mCell);
+    return timeRow;
+  }
+
+  function buildCalendar() {
+    const cal = document.createElement('div');
+    cal.className = 'dt-cal';
+
+    const head = document.createElement('div');
+    head.className = 'dt-cal-head';
+    const prev = document.createElement('button');
+    prev.type = 'button'; prev.className = 'dt-nav'; prev.textContent = '‹';
+    const title = document.createElement('span');
+    title.className = 'dt-cal-title';
+    title.textContent = `${['January','February','March','April','May','June','July','August','September','October','November','December'][view.m]} ${view.y}`;
+    const next = document.createElement('button');
+    next.type = 'button'; next.className = 'dt-nav'; next.textContent = '›';
+    prev.addEventListener('click', () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; } rebuild(); });
+    next.addEventListener('click', () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } rebuild(); });
+    head.append(prev, title, next);
+    cal.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'dt-grid';
+    for (const w of DT_WEEKDAYS) {
+      const wd = document.createElement('span');
+      wd.className = 'dt-wd'; wd.textContent = w;
+      grid.appendChild(wd);
+    }
+
+    const first = new Date(view.y, view.m, 1);
+    const lead = (first.getDay() + 6) % 7; // Monday-first
+    const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+    const sel = parse(value);
+    const today = new Date();
+    for (let i = 0; i < lead; i++) grid.appendChild(document.createElement('span'));
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'dt-day';
+      cell.textContent = String(d);
+      if (sel && sel.y === view.y && sel.mo === view.m && sel.d === d) cell.classList.add('selected');
+      if (today.getFullYear() === view.y && today.getMonth() === view.m && today.getDate() === d) cell.classList.add('today');
+      cell.addEventListener('click', () => {
+        const t = parse(value) || { h: 9, mi: 0 };
+        setValue(compose(view.y, view.m, d, t.h, t.mi), true);
+        rebuild();
+      });
+      grid.appendChild(cell);
+    }
+    cal.appendChild(grid);
+    return cal;
+  }
+
+  function rebuild() {
+    if (!panel) return;
+    panel.innerHTML = '';
+    panel.appendChild(buildCalendar());
+    panel.appendChild(buildTime(parse(value)));
+
+    const foot = document.createElement('div');
+    foot.className = 'dt-foot';
+    const clear = document.createElement('button');
+    clear.type = 'button'; clear.className = 'dt-clear'; clear.textContent = 'Clear';
+    clear.addEventListener('click', () => { setValue('', true); rebuild(); });
+    const done = document.createElement('button');
+    done.type = 'button'; done.className = 'dt-done'; done.textContent = 'Done';
+    done.addEventListener('click', close);
+    foot.append(clear, done);
+    panel.appendChild(foot);
+    position();
+  }
+
+  function position() {
+    if (!panel) return;
+    const r = field.getBoundingClientRect();
+    const pr = panel.getBoundingClientRect();
+    let top = r.bottom + 6;
+    if (top + pr.height > window.innerHeight - 6) top = Math.max(6, r.top - pr.height - 6);
+    let left = r.left;
+    if (left + pr.width > window.innerWidth - 6) left = window.innerWidth - pr.width - 6;
+    panel.style.top = `${top}px`;
+    panel.style.left = `${Math.max(6, left)}px`;
+  }
+
+  function onDocClick(e) {
+    if (panel && !panel.contains(e.target) && !field.contains(e.target)) close();
+  }
+
+  function open() {
+    if (openDtPicker && openDtPicker !== close) openDtPicker();
+    view = startMonth(value);
+    panel = document.createElement('div');
+    panel.className = 'dt-panel';
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    document.body.appendChild(panel);
+    field.classList.add('open');
+    rebuild();
+    openDtPicker = close;
+    // Defer so the click that opened the panel doesn't immediately close it.
+    setTimeout(() => document.addEventListener('click', onDocClick), 0);
+  }
+
+  function close() {
+    document.removeEventListener('click', onDocClick);
+    if (panel) { panel.remove(); panel = null; }
+    field.classList.remove('open');
+    if (openDtPicker === close) openDtPicker = null;
+  }
+
+  field.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel ? close() : open();
+  });
+
+  renderField();
+  return {
+    element: field,
+    get value() { return value; },
+    setValue: (v) => setValue(v, false),
+  };
+}
+
 function renderInterviews() {
   const list = el('interview-list');
   list.innerHTML = '';
@@ -1254,11 +1531,11 @@ function renderInterviews() {
       saveInterviewRecord(iv);
     }));
 
-    const dt = document.createElement('input');
-    dt.type = 'datetime-local';
-    dt.value = iv.scheduled_at || '';
-    dt.addEventListener('input', () => { iv.scheduled_at = dt.value; queueSave(); });
-    row1.appendChild(dt);
+    const dt = createDateTimePicker(iv.scheduled_at, (val) => {
+      iv.scheduled_at = val;
+      queueSave();
+    });
+    row1.appendChild(dt.element);
 
     const cal = document.createElement('button');
     cal.type = 'button';
@@ -1339,15 +1616,15 @@ function showInlineScheduler(afterRow, stage) {
   const box = document.createElement('div');
   box.className = 'iv-inline';
 
-  const dt = document.createElement('input');
-  dt.type = 'datetime-local';
+  const dt = createDateTimePicker('', () => {});
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'iv-inline-add';
   add.textContent = 'Schedule';
   add.addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!dt.value) { dt.focus(); return; }
+    if (!dt.value) { dt.element.click(); return; }
+    if (openDtPicker) openDtPicker();
     box.remove();
     const iv = await addInterview(stage, dt.value);
     if (iv) toast(`${stage} scheduled · ${formatEventShort(dt.value)}`);
@@ -1356,13 +1633,17 @@ function showInlineScheduler(afterRow, stage) {
   skip.type = 'button';
   skip.className = 'iv-inline-skip';
   skip.textContent = 'Skip';
-  skip.addEventListener('click', (e) => { e.stopPropagation(); box.remove(); });
+  skip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (openDtPicker) openDtPicker();
+    box.remove();
+  });
 
-  box.appendChild(dt);
+  box.appendChild(dt.element);
   box.appendChild(add);
   box.appendChild(skip);
   afterRow.insertAdjacentElement('afterend', box);
-  dt.focus();
+  dt.element.click(); // open the picker right away
 }
 
 // ── Calendar export (.ics) ──
