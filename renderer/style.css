@@ -219,7 +219,9 @@ body {
   outline: 1px solid rgba(240, 246, 252, 0.4);
 }
 
-/* Interview marker: a tiny, subtle dot in the centre of the day */
+/* Interview marker: a monochrome ring drawn INSIDE the cell, so the green fill
+   (driven by application count) shows through and the grid geometry / gaps stay
+   untouched. Renders on empty cells too — white reads fine on the dark cell. */
 .day.has-interview {
   cursor: pointer;
 }
@@ -227,28 +229,25 @@ body {
 .day.has-interview::after {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: #79b8ff;
+  inset: 0;
+  border-radius: 3px; /* matches the cell radius */
   pointer-events: none;
 }
 
-.day.has-interview[data-iv-count]::after {
-  width: 5px;
-  height: 5px;
+/* Passed/done interview — solid ring */
+.day.iv-done::after {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
-/* Upcoming interview dots pulse gently to draw the eye */
-.day.future.has-interview::after {
-  animation: ivPulse 2.4s ease-in-out infinite;
+/* Upcoming interview — dashed ring with a slow opacity-only pulse */
+.day.iv-upcoming::after {
+  border: 2px dashed rgba(255, 255, 255, 0.7);
+  box-sizing: border-box;
+  animation: ivPulse 1.8s ease-in-out infinite;
 }
 
 @keyframes ivPulse {
-  0%, 100% { opacity: 0.7; }
+  0%, 100% { opacity: 0.35; }
   50%      { opacity: 1; }
 }
 

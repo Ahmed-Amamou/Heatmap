@@ -124,7 +124,10 @@ function renderHeatmap(dateCounts) {
 
       if (ivs.length) {
         dayEl.classList.add('has-interview');
-        if (ivs.length > 1) dayEl.setAttribute('data-iv-count', ivs.length);
+        // Upcoming takes priority (it's the actionable one); otherwise the day's
+        // interviews are done (passed/failed).
+        const hasUpcoming = ivs.some((iv) => (iv.outcome || 'upcoming') === 'upcoming');
+        dayEl.classList.add(hasUpcoming ? 'iv-upcoming' : 'iv-done');
       }
 
       // Staggered entrance animation
