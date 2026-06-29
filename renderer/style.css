@@ -111,7 +111,9 @@ body {
   color: #58a6ff;
 }
 
-#btn-close:hover {
+/* More specific than #controls button:hover so the red actually wins. Uses the
+   app's existing danger red (#f85149), staying on-theme. */
+#controls #btn-close:hover {
   background: rgba(248, 81, 73, 0.15);
   color: #f85149;
 }
