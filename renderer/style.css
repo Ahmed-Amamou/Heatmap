@@ -216,12 +216,16 @@ body {
   box-shadow: none;
 }
 
-/* Today's cell — a clear theme-blue ring so it stands out. Drawn as an inset
-   outline (offset inward) so it stays inside the cell footprint, keeps the grid
-   gaps untouched, and reads distinctly from the monochrome interview rings. */
-.day.is-today {
-  outline: 2px solid #58a6ff;
-  outline-offset: -2px;
+/* Today's cell — a faint translucent-white fill, consistent with the theme's
+   subtle white surfaces. Drawn as an overlay (::before) so it tints any cell
+   state (empty or green) and never collides with the interview ::after ring. */
+.day.is-today::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
 }
 
 /* Interview marker: a monochrome ring drawn INSIDE the cell, so the green fill
