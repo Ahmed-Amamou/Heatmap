@@ -1813,11 +1813,15 @@ function appendAppMarkdown(out, a, heading) {
     out.push('');
     out.push('**Interviews:**');
     for (const iv of ivs) {
-      const bits = [
-        formatEventShort(iv.scheduled_at), iv.stage, iv.format, iv.interviewer,
-        iv.outcome && iv.outcome !== 'upcoming' ? iv.outcome : '',
+      const state = String(iv.outcome || 'upcoming');
+      const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
+      const meta = [
+        formatEventShort(iv.scheduled_at),
+        iv.format,
+        iv.interviewer ? `with ${iv.interviewer}` : '',
+        stateLabel,
       ].filter(Boolean).join(' · ');
-      out.push(`- ${bits || 'Interview'}`);
+      out.push(`- **${iv.stage || 'Interview'}** — ${meta}`);
       if (iv.notes) out.push(`  - Notes: ${String(iv.notes).trim().replace(/\s*\n\s*/g, ' / ')}`);
     }
   }
@@ -1866,10 +1870,12 @@ document.getElementById('btn-export-one').addEventListener('click', async () => 
   const a = { id: el('f-id').value || null };
   for (const f of FIELDS) a[f] = el(`f-${f}`).value.trim() || null;
 
-  const slug = String(a.company || a.job_title || 'application')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'application';
+  // Lead the filename with the job title, then company, e.g.
+  // application-frontend-engineer-acme.md
+  const slug = [a.job_title, a.company]
+    .map((s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))
+    .filter(Boolean)
+    .join('-') || 'application';
 
   const result = await window.heatmapAPI.exportApplications({
     defaultName: `application-${slug}.md`,
