@@ -216,9 +216,12 @@ body {
   box-shadow: none;
 }
 
-/* Today's cell, for orientation against the future columns */
+/* Today's cell — a clear theme-blue ring so it stands out. Drawn as an inset
+   outline (offset inward) so it stays inside the cell footprint, keeps the grid
+   gaps untouched, and reads distinctly from the monochrome interview rings. */
 .day.is-today {
-  outline: 1px solid rgba(240, 246, 252, 0.4);
+  outline: 2px solid #58a6ff;
+  outline-offset: -2px;
 }
 
 /* Interview marker: a monochrome ring drawn INSIDE the cell, so the green fill
